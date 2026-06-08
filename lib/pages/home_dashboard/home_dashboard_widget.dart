@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import '/auth/auth_manager.dart';
+import '/backend/backend.dart';
+import '/business/cycle_engine.dart';
 import '/components/button/button_widget.dart';
 import '/components/calendar_pill/calendar_pill_widget.dart';
 import '/components/ritual_tile/ritual_tile_widget.dart';
@@ -5,11 +10,30 @@ import '/components/status_card/status_card_widget.dart';
 import '/flutter_flow/flutter_flow_charts.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/index.dart';
+import '/utils/app_date_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'home_dashboard_model.dart';
 export 'home_dashboard_model.dart';
+
+/// One entry in the dashboard week strip.
+class _WeekDay {
+  const _WeekDay(this.name, this.num, this.isPeriod, this.active);
+  final String name;
+  final String num;
+  final bool isPeriod;
+  final bool active;
+}
+
+const _moodLabels = <String, String>{
+  'great': 'Joyful',
+  'good': 'Content',
+  'okay': 'Peaceful',
+  'low': 'Tender',
+  'terrible': 'Drained',
+};
 
 class HomeDashboardWidget extends StatefulWidget {
   const HomeDashboardWidget({super.key});
@@ -26,18 +50,82 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  StreamSubscription<UsersRecord>? _userSub;
+  StreamSubscription<List<CyclesRecord>>? _cyclesSub;
+  StreamSubscription<List<MoodsRecord>>? _moodsSub;
+
+  UsersRecord? _user;
+  CycleStatus _status = CycleEngine.compute(const []);
+  MoodsRecord? _todayMood;
+
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => HomeDashboardModel());
+
+    final uid = AuthManager.instance.currentUid;
+    if (uid != null) {
+      _userSub = streamUser(uid).listen((u) {
+        if (mounted) safeSetState(() => _user = u);
+      });
+      _cyclesSub = streamCycles(uid).listen((cycles) {
+        if (mounted) {
+          safeSetState(() => _status = CycleEngine.compute(cycles));
+        }
+      });
+      _moodsSub = streamMoods(uid).listen((moods) {
+        final now = DateTime.now();
+        MoodsRecord? todays;
+        for (final m in moods) {
+          if (AppDateUtils.isSameDay(m.date, now)) {
+            todays = m;
+            break;
+          }
+        }
+        if (mounted) safeSetState(() => _todayMood = todays);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _userSub?.cancel();
+    _cyclesSub?.cancel();
+    _moodsSub?.cancel();
     _model.dispose();
 
     super.dispose();
   }
+
+  String get _firstName {
+    final name = (_user?.displayName ?? '').trim();
+    if (name.isNotEmpty) return name.split(' ').first;
+    return 'there';
+  }
+
+  String get _moodValue {
+    final mood = _todayMood?.mood ?? '';
+    return _moodLabels[mood] ?? (mood.isEmpty ? 'Not logged' : mood);
+  }
+
+  /// Mon-Sun of the current week with period/active flags from the cycle model.
+  List<_WeekDay> _weekDays() {
+    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final today = AppDateUtils.startOfDay(DateTime.now());
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    return List.generate(7, (i) {
+      final date = monday.add(Duration(days: i));
+      return _WeekDay(
+        names[i],
+        '${date.day}',
+        _status.isPeriodDay(date),
+        AppDateUtils.isSameDay(date, today),
+      );
+    });
+  }
+
+  void _openLogSymptoms() =>
+      context.pushNamed(LogSymptomsModalWidget.routeName);
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +133,8 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
       FlutterFlowTheme.of(context).onPrimary,
       FlutterFlowTheme.of(context).onPrimary20
     ];
+    final week = _weekDays();
+    final score = _status.vitalityScore;
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
@@ -91,7 +181,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Welcome, Anna',
+                                          'Welcome, $_firstName',
                                           style: FlutterFlowTheme.of(context)
                                               .headlineMedium
                                               .override(
@@ -124,7 +214,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                               ),
                                         ),
                                         Text(
-                                          'Luteal Phase • Day 22',
+                                          '${_status.phase.label} • Day ${_status.cycleDay}',
                                           style: FlutterFlowTheme.of(context)
                                               .bodyMedium
                                               .override(
@@ -217,10 +307,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 updateCallback: () =>
                                                     safeSetState(() {}),
                                                 child: CalendarPillWidget(
-                                                  day_name: 'Mon',
-                                                  day_num: '18',
-                                                  is_period: false,
-                                                  active: false,
+                                                  day_name: week[0].name,
+                                                  day_num: week[0].num,
+                                                  is_period: week[0].isPeriod,
+                                                  active: week[0].active,
                                                 ),
                                               ),
                                               wrapWithModel(
@@ -229,10 +319,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 updateCallback: () =>
                                                     safeSetState(() {}),
                                                 child: CalendarPillWidget(
-                                                  day_name: 'Tue',
-                                                  day_num: '19',
-                                                  is_period: false,
-                                                  active: false,
+                                                  day_name: week[1].name,
+                                                  day_num: week[1].num,
+                                                  is_period: week[1].isPeriod,
+                                                  active: week[1].active,
                                                 ),
                                               ),
                                               wrapWithModel(
@@ -241,10 +331,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 updateCallback: () =>
                                                     safeSetState(() {}),
                                                 child: CalendarPillWidget(
-                                                  day_name: 'Wed',
-                                                  day_num: '20',
-                                                  is_period: true,
-                                                  active: false,
+                                                  day_name: week[2].name,
+                                                  day_num: week[2].num,
+                                                  is_period: week[2].isPeriod,
+                                                  active: week[2].active,
                                                 ),
                                               ),
                                               wrapWithModel(
@@ -253,10 +343,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 updateCallback: () =>
                                                     safeSetState(() {}),
                                                 child: CalendarPillWidget(
-                                                  day_name: 'Thu',
-                                                  day_num: '21',
-                                                  is_period: true,
-                                                  active: false,
+                                                  day_name: week[3].name,
+                                                  day_num: week[3].num,
+                                                  is_period: week[3].isPeriod,
+                                                  active: week[3].active,
                                                 ),
                                               ),
                                               wrapWithModel(
@@ -265,10 +355,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 updateCallback: () =>
                                                     safeSetState(() {}),
                                                 child: CalendarPillWidget(
-                                                  day_name: 'Fri',
-                                                  day_num: '22',
-                                                  is_period: false,
-                                                  active: true,
+                                                  day_name: week[4].name,
+                                                  day_num: week[4].num,
+                                                  is_period: week[4].isPeriod,
+                                                  active: week[4].active,
                                                 ),
                                               ),
                                               wrapWithModel(
@@ -277,10 +367,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 updateCallback: () =>
                                                     safeSetState(() {}),
                                                 child: CalendarPillWidget(
-                                                  day_name: 'Sat',
-                                                  day_num: '23',
-                                                  is_period: false,
-                                                  active: false,
+                                                  day_name: week[5].name,
+                                                  day_num: week[5].num,
+                                                  is_period: week[5].isPeriod,
+                                                  active: week[5].active,
                                                 ),
                                               ),
                                               wrapWithModel(
@@ -289,10 +379,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 updateCallback: () =>
                                                     safeSetState(() {}),
                                                 child: CalendarPillWidget(
-                                                  day_name: 'Sun',
-                                                  day_num: '24',
-                                                  is_period: false,
-                                                  active: false,
+                                                  day_name: week[6].name,
+                                                  day_num: week[6].num,
+                                                  is_period: week[6].isPeriod,
+                                                  active: week[6].active,
                                                 ),
                                               ),
                                             ].divide(SizedBox(width: 16.0)),
@@ -352,7 +442,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                     height: 140.0,
                                                     child: FlutterFlowPieChart(
                                                       data: FFPieChartData(
-                                                        values: ([72.0, 28.0]),
+                                                        values: ([
+                                                          score.toDouble(),
+                                                          (100 - score).toDouble()
+                                                        ]),
                                                         colors:
                                                             pieChartPieChartColorsList,
                                                         radius: [45.0],
@@ -395,7 +488,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                     ),
                                                   ),
                                                   Text(
-                                                    '72',
+                                                    '$score',
                                                     style: FlutterFlowTheme.of(
                                                             context)
                                                         .headlineMedium
@@ -479,7 +572,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                         ),
                                                   ),
                                                   Text(
-                                                    'Your hormonal balance is improving. Keep up the high-protein meals today.',
+                                                    _status.phase.vitalityMessage,
                                                     maxLines: 3,
                                                     style: FlutterFlowTheme.of(
                                                             context)
@@ -545,7 +638,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                           ),
                                           icon_color: Color(0xFFBA68C8),
                                           label: 'Mood',
-                                          value: 'Peaceful',
+                                          value: _moodValue,
                                         ),
                                       ),
                                     ),
@@ -565,7 +658,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                           ),
                                           icon_color: Color(0xFF03A9F4),
                                           label: 'Energy',
-                                          value: 'Moderate',
+                                          value: _status.phase.energyLevel,
                                         ),
                                       ),
                                     ),
@@ -741,7 +834,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.center,
                                         children: [
-                                          Container(
+                                          InkWell(
+                                            onTap: () => context.pushNamed(
+                                                WellnessTabWidget.routeName),
+                                            child: Container(
                                             height: 160.0,
                                             decoration: BoxDecoration(
                                               color: Color(0xFFFFF3E0),
@@ -812,6 +908,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 ),
                                               ),
                                             ),
+                                          ),
                                           ),
                                           Container(
                                             height: 100.0,
@@ -898,7 +995,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.center,
                                         children: [
-                                          Container(
+                                          InkWell(
+                                            onTap: () => context.pushNamed(
+                                                WellnessTabWidget.routeName),
+                                            child: Container(
                                             height: 100.0,
                                             decoration: BoxDecoration(
                                               color: Color(0xFFE8EAF6),
@@ -971,7 +1071,12 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                               ),
                                             ),
                                           ),
-                                          Container(
+                                          ),
+                                          InkWell(
+                                            onTap: () => context.pushNamed(
+                                                ConsultationChatWidget
+                                                    .routeName),
+                                            child: Container(
                                             height: 160.0,
                                             decoration: BoxDecoration(
                                               color: Color(0xFFFCE4EC),
@@ -1044,6 +1149,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                               ),
                                             ),
                                           ),
+                                          ),
                                         ].divide(SizedBox(height: 16.0)),
                                       ),
                                     ),
@@ -1054,7 +1160,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                           ),
                           Padding(
                             padding: EdgeInsets.all(24.0),
-                            child: Container(
+                            child: InkWell(
+                              onTap: () => context
+                                  .pushNamed(CommunityFeedWidget.routeName),
+                              child: Container(
                               child: Container(
                                 decoration: BoxDecoration(
                                   color: FlutterFlowTheme.of(context)
@@ -1193,6 +1302,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                               ),
                             ),
                           ),
+                          ),
                         ],
                       ),
                     ),
@@ -1205,9 +1315,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
               child: Container(
                 alignment: AlignmentDirectional(1.0, 1.0),
                 child: FloatingActionButton.extended(
-                  onPressed: () {
-                    print('FAB pressed ...');
-                  },
+                  onPressed: _openLogSymptoms,
                   backgroundColor: FlutterFlowTheme.of(context).primary,
                   icon: Icon(
                     Icons.add_rounded,
