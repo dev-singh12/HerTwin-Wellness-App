@@ -1,3 +1,6 @@
+import '/auth/auth_manager.dart';
+import '/backend/backend.dart';
+import '/business/cycle_engine.dart';
 import '/components/button/button_widget.dart';
 import '/components/mood_selector/mood_selector_widget.dart';
 import '/components/symptom_chip/symptom_chip_widget.dart';
@@ -9,6 +12,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'log_symptoms_modal_model.dart';
 export 'log_symptoms_modal_model.dart';
+
+/// Maps each on-screen mood option to the stored mood key and a 1-5 score.
+const _moodMap = <String, (String, int)>{
+  'Happy': ('great', 5),
+  'Calm': ('good', 4),
+  'Tired': ('okay', 3),
+  'Low': ('low', 2),
+  'Angry': ('terrible', 1),
+};
 
 class LogSymptomsModalWidget extends StatefulWidget {
   const LogSymptomsModalWidget({super.key});
@@ -25,6 +37,11 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  String? _selectedMood;
+  final Set<String> _selectedSymptoms = {};
+  String? _flow;
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +53,164 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
     _model.dispose();
 
     super.dispose();
+  }
+
+  void _selectMood(String label) =>
+      safeSetState(() => _selectedMood = _selectedMood == label ? null : label);
+
+  void _toggleSymptom(String label) => safeSetState(() {
+        if (!_selectedSymptoms.add(label)) _selectedSymptoms.remove(label);
+      });
+
+  void _selectFlow(String label) =>
+      safeSetState(() => _flow = _flow == label ? null : label);
+
+  Widget _flowTile(String label) {
+    final selected = _flow == label;
+    return Expanded(
+      flex: 1,
+      child: InkWell(
+        onTap: () => _selectFlow(label),
+        child: Container(
+          decoration: BoxDecoration(
+            color: selected
+                ? FlutterFlowTheme.of(context).primary10
+                : FlutterFlowTheme.of(context).secondaryBackground,
+            borderRadius: BorderRadius.circular(18.0),
+            shape: BoxShape.rectangle,
+            border: Border.all(
+              color: selected
+                  ? FlutterFlowTheme.of(context).primary
+                  : FlutterFlowTheme.of(context).alternate,
+              width: 1.0,
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Container(
+              alignment: AlignmentDirectional(0.0, 0.0),
+              child: Text(
+                label,
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                      font: GoogleFonts.inter(
+                        fontWeight: selected
+                            ? FontWeight.bold
+                            : FlutterFlowTheme.of(context).bodyMedium.fontWeight,
+                        fontStyle:
+                            FlutterFlowTheme.of(context).bodyMedium.fontStyle,
+                      ),
+                      color: selected
+                          ? FlutterFlowTheme.of(context).onSurface
+                          : FlutterFlowTheme.of(context).secondaryText,
+                      letterSpacing: 0.0,
+                      fontWeight: selected
+                          ? FontWeight.bold
+                          : FlutterFlowTheme.of(context).bodyMedium.fontWeight,
+                      fontStyle:
+                          FlutterFlowTheme.of(context).bodyMedium.fontStyle,
+                      lineHeight: 1.5,
+                    ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null) {
+      context.safePop();
+      return;
+    }
+    if (_selectedMood == null && _selectedSymptoms.isEmpty && _flow == null) {
+      _showMessage('Select a mood, symptom, or flow before saving.');
+      return;
+    }
+    safeSetState(() => _saving = true);
+    final now = DateTime.now();
+    final notes =
+        _model.textFieldModel.inputTextController?.text.trim() ?? '';
+    try {
+      if (_selectedMood != null) {
+        final entry = _moodMap[_selectedMood]!;
+        final id = newMoodId(uid);
+        await createMood(
+          uid,
+          MoodsRecord(
+            id: id,
+            date: now,
+            mood: entry.$1,
+            moodScore: entry.$2,
+            notes: notes,
+            createdAt: now,
+          ),
+        );
+      }
+      if (_selectedSymptoms.isNotEmpty) {
+        final id = newSymptomId(uid);
+        await createSymptom(
+          uid,
+          SymptomsRecord(
+            id: id,
+            date: now,
+            symptoms: _selectedSymptoms.toList(),
+            category: 'physical',
+            notes: notes,
+            createdAt: now,
+          ),
+        );
+      }
+      if (_flow != null) {
+        await _logPeriodFlow(uid, now);
+      }
+      if (!mounted) return;
+      _showMessage('Daily log saved.');
+      context.safePop();
+    } catch (e) {
+      _showMessage('Could not save your log. Please try again.');
+    } finally {
+      if (mounted) safeSetState(() => _saving = false);
+    }
+  }
+
+  /// Records a period start for [now] when flow is logged, unless a recent
+  /// cycle already covers today (prevents duplicate starts skewing estimates).
+  Future<void> _logPeriodFlow(String uid, DateTime now) async {
+    final snap = await cyclesCollection(uid)
+        .orderBy('startDate', descending: true)
+        .limit(1)
+        .get();
+    if (snap.docs.isNotEmpty) {
+      final last = CyclesRecord.fromSnapshot(snap.docs.first);
+      final start = last.startDate;
+      if (start != null &&
+          now.difference(start).inDays.abs() <
+              CycleEngine.defaultPeriodLength) {
+        await updateCycle(uid, last.id, {'flow': _flow!.toLowerCase()});
+        return;
+      }
+    }
+    final id = newCycleId(uid);
+    await createCycle(
+      uid,
+      CyclesRecord(
+        id: id,
+        startDate: now,
+        flow: _flow!.toLowerCase(),
+        periodLength: CycleEngine.defaultPeriodLength,
+        createdAt: now,
+      ),
+    );
   }
 
   @override
@@ -79,9 +254,8 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                               color: FlutterFlowTheme.of(context).secondaryText,
                               size: 24.0,
                             ),
-                            onPressed: () {
-                              print('IconButton pressed ...');
-                            },
+                            onPressed:
+                                _saving ? null : () => context.safePop(),
                           ),
                           Text(
                             'Log Symptoms',
@@ -104,19 +278,23 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                   lineHeight: 1.3,
                                 ),
                           ),
-                          wrapWithModel(
-                            model: _model.buttonModel1,
-                            updateCallback: () => safeSetState(() {}),
-                            child: ButtonWidget(
-                              content: 'Save',
-                              icon_present: false,
-                              icon_end_present: false,
-                              color: FlutterFlowTheme.of(context).secondaryText,
-                              variant: 'ghost',
-                              size: 'small',
-                              full_width: false,
-                              loading: false,
-                              disabled: false,
+                          InkWell(
+                            onTap: _saving ? null : () => _save(),
+                            child: wrapWithModel(
+                              model: _model.buttonModel1,
+                              updateCallback: () => safeSetState(() {}),
+                              child: ButtonWidget(
+                                content: 'Save',
+                                icon_present: false,
+                                icon_end_present: false,
+                                color:
+                                    FlutterFlowTheme.of(context).secondaryText,
+                                variant: 'ghost',
+                                size: 'small',
+                                full_width: false,
+                                loading: _saving,
+                                disabled: _saving,
+                              ),
                             ),
                           ),
                         ],
@@ -172,7 +350,8 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       Text(
-                                        'Friday, Oct 22',
+                                        DateFormat('EEEE, MMM d')
+                                            .format(DateTime.now()),
                                         style: FlutterFlowTheme.of(context)
                                             .bodyMedium
                                             .override(
@@ -241,54 +420,74 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                       MainAxisAlignment.spaceBetween,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    wrapWithModel(
-                                      model: _model.moodSelectorModel1,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: MoodSelectorWidget(
-                                        color: Color(0xFFFFF9C4),
-                                        emoji: '😊',
-                                        label: 'Happy',
-                                        selected: false,
+                                    InkWell(
+                                      onTap: () => _selectMood('Happy'),
+                                      child: wrapWithModel(
+                                        model: _model.moodSelectorModel1,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: MoodSelectorWidget(
+                                          color: Color(0xFFFFF9C4),
+                                          emoji: '😊',
+                                          label: 'Happy',
+                                          selected: _selectedMood == 'Happy',
+                                        ),
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.moodSelectorModel2,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: MoodSelectorWidget(
-                                        color: Color(0xFFE1F5FE),
-                                        emoji: '😌',
-                                        label: 'Calm',
-                                        selected: true,
+                                    InkWell(
+                                      onTap: () => _selectMood('Calm'),
+                                      child: wrapWithModel(
+                                        model: _model.moodSelectorModel2,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: MoodSelectorWidget(
+                                          color: Color(0xFFE1F5FE),
+                                          emoji: '😌',
+                                          label: 'Calm',
+                                          selected: _selectedMood == 'Calm',
+                                        ),
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.moodSelectorModel3,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: MoodSelectorWidget(
-                                        color: Color(0xFFE8EAF6),
-                                        emoji: '😔',
-                                        label: 'Low',
-                                        selected: false,
+                                    InkWell(
+                                      onTap: () => _selectMood('Low'),
+                                      child: wrapWithModel(
+                                        model: _model.moodSelectorModel3,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: MoodSelectorWidget(
+                                          color: Color(0xFFE8EAF6),
+                                          emoji: '😔',
+                                          label: 'Low',
+                                          selected: _selectedMood == 'Low',
+                                        ),
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.moodSelectorModel4,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: MoodSelectorWidget(
-                                        color: Color(0xFFF3E5F5),
-                                        emoji: '😫',
-                                        label: 'Tired',
-                                        selected: false,
+                                    InkWell(
+                                      onTap: () => _selectMood('Tired'),
+                                      child: wrapWithModel(
+                                        model: _model.moodSelectorModel4,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: MoodSelectorWidget(
+                                          color: Color(0xFFF3E5F5),
+                                          emoji: '😫',
+                                          label: 'Tired',
+                                          selected: _selectedMood == 'Tired',
+                                        ),
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.moodSelectorModel5,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: MoodSelectorWidget(
-                                        color: Color(0xFFFFEBEE),
-                                        emoji: '😡',
-                                        label: 'Angry',
-                                        selected: false,
+                                    InkWell(
+                                      onTap: () => _selectMood('Angry'),
+                                      child: wrapWithModel(
+                                        model: _model.moodSelectorModel5,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: MoodSelectorWidget(
+                                          color: Color(0xFFFFEBEE),
+                                          emoji: '😡',
+                                          label: 'Angry',
+                                          selected: _selectedMood == 'Angry',
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -337,88 +536,144 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                   verticalDirection: VerticalDirection.down,
                                   clipBehavior: Clip.none,
                                   children: [
-                                    wrapWithModel(
-                                      model: _model.symptomChipModel1,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: SymptomChipWidget(
-                                        icon: Icon(
-                                          Icons.water_drop_rounded,
-                                          color: FlutterFlowTheme.of(context)
-                                              .onPrimary,
-                                          size: 18.0,
+                                    InkWell(
+                                      onTap: () => _toggleSymptom('Cramps'),
+                                      child: wrapWithModel(
+                                        model: _model.symptomChipModel1,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: SymptomChipWidget(
+                                          icon: Icon(
+                                            Icons.water_drop_rounded,
+                                            color: _selectedSymptoms
+                                                    .contains('Cramps')
+                                                ? FlutterFlowTheme.of(context)
+                                                    .onPrimary
+                                                : FlutterFlowTheme.of(context)
+                                                    .secondaryText,
+                                            size: 18.0,
+                                          ),
+                                          label: 'Cramps',
+                                          selected: _selectedSymptoms
+                                              .contains('Cramps'),
                                         ),
-                                        label: 'Cramps',
-                                        selected: true,
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.symptomChipModel2,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: SymptomChipWidget(
-                                        icon: Icon(
-                                          Icons.thermostat_rounded,
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryText,
-                                          size: 18.0,
+                                    InkWell(
+                                      onTap: () => _toggleSymptom('Bloating'),
+                                      child: wrapWithModel(
+                                        model: _model.symptomChipModel2,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: SymptomChipWidget(
+                                          icon: Icon(
+                                            Icons.thermostat_rounded,
+                                            color: _selectedSymptoms
+                                                    .contains('Bloating')
+                                                ? FlutterFlowTheme.of(context)
+                                                    .onPrimary
+                                                : FlutterFlowTheme.of(context)
+                                                    .secondaryText,
+                                            size: 18.0,
+                                          ),
+                                          label: 'Bloating',
+                                          selected: _selectedSymptoms
+                                              .contains('Bloating'),
                                         ),
-                                        label: 'Bloating',
-                                        selected: false,
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.symptomChipModel3,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: SymptomChipWidget(
-                                        icon: Icon(
-                                          Icons.face_6_rounded,
-                                          color: FlutterFlowTheme.of(context)
-                                              .onPrimary,
-                                          size: 18.0,
+                                    InkWell(
+                                      onTap: () =>
+                                          _toggleSymptom('Acne Breakout'),
+                                      child: wrapWithModel(
+                                        model: _model.symptomChipModel3,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: SymptomChipWidget(
+                                          icon: Icon(
+                                            Icons.face_6_rounded,
+                                            color: _selectedSymptoms
+                                                    .contains('Acne Breakout')
+                                                ? FlutterFlowTheme.of(context)
+                                                    .onPrimary
+                                                : FlutterFlowTheme.of(context)
+                                                    .secondaryText,
+                                            size: 18.0,
+                                          ),
+                                          label: 'Acne Breakout',
+                                          selected: _selectedSymptoms
+                                              .contains('Acne Breakout'),
                                         ),
-                                        label: 'Acne Breakout',
-                                        selected: true,
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.symptomChipModel4,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: SymptomChipWidget(
-                                        icon: Icon(
-                                          Icons.air_rounded,
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryText,
-                                          size: 18.0,
+                                    InkWell(
+                                      onTap: () => _toggleSymptom('Headache'),
+                                      child: wrapWithModel(
+                                        model: _model.symptomChipModel4,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: SymptomChipWidget(
+                                          icon: Icon(
+                                            Icons.air_rounded,
+                                            color: _selectedSymptoms
+                                                    .contains('Headache')
+                                                ? FlutterFlowTheme.of(context)
+                                                    .onPrimary
+                                                : FlutterFlowTheme.of(context)
+                                                    .secondaryText,
+                                            size: 18.0,
+                                          ),
+                                          label: 'Headache',
+                                          selected: _selectedSymptoms
+                                              .contains('Headache'),
                                         ),
-                                        label: 'Headache',
-                                        selected: false,
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.symptomChipModel5,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: SymptomChipWidget(
-                                        icon: Icon(
-                                          Icons.speed_rounded,
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryText,
-                                          size: 18.0,
+                                    InkWell(
+                                      onTap: () =>
+                                          _toggleSymptom('Breast Tenderness'),
+                                      child: wrapWithModel(
+                                        model: _model.symptomChipModel5,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: SymptomChipWidget(
+                                          icon: Icon(
+                                            Icons.speed_rounded,
+                                            color: _selectedSymptoms.contains(
+                                                    'Breast Tenderness')
+                                                ? FlutterFlowTheme.of(context)
+                                                    .onPrimary
+                                                : FlutterFlowTheme.of(context)
+                                                    .secondaryText,
+                                            size: 18.0,
+                                          ),
+                                          label: 'Breast Tenderness',
+                                          selected: _selectedSymptoms
+                                              .contains('Breast Tenderness'),
                                         ),
-                                        label: 'Breast Tenderness',
-                                        selected: false,
                                       ),
                                     ),
-                                    wrapWithModel(
-                                      model: _model.symptomChipModel6,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: SymptomChipWidget(
-                                        icon: Icon(
-                                          Icons.bolt_rounded,
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryText,
-                                          size: 18.0,
+                                    InkWell(
+                                      onTap: () => _toggleSymptom('Back Pain'),
+                                      child: wrapWithModel(
+                                        model: _model.symptomChipModel6,
+                                        updateCallback: () =>
+                                            safeSetState(() {}),
+                                        child: SymptomChipWidget(
+                                          icon: Icon(
+                                            Icons.bolt_rounded,
+                                            color: _selectedSymptoms
+                                                    .contains('Back Pain')
+                                                ? FlutterFlowTheme.of(context)
+                                                    .onPrimary
+                                                : FlutterFlowTheme.of(context)
+                                                    .secondaryText,
+                                            size: 18.0,
+                                          ),
+                                          label: 'Back Pain',
+                                          selected: _selectedSymptoms
+                                              .contains('Back Pain'),
                                         ),
-                                        label: 'Back Pain',
-                                        selected: false,
                                       ),
                                     ),
                                   ],
@@ -462,186 +717,9 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                   mainAxisAlignment: MainAxisAlignment.start,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    Expanded(
-                                      flex: 1,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryBackground,
-                                          borderRadius:
-                                              BorderRadius.circular(18.0),
-                                          shape: BoxShape.rectangle,
-                                          border: Border.all(
-                                            color: FlutterFlowTheme.of(context)
-                                                .alternate,
-                                            width: 1.0,
-                                          ),
-                                        ),
-                                        child: Padding(
-                                          padding: EdgeInsets.all(16.0),
-                                          child: Container(
-                                            child: Container(
-                                              alignment: AlignmentDirectional(
-                                                  0.0, 0.0),
-                                              child: Text(
-                                                'Light',
-                                                style: FlutterFlowTheme.of(
-                                                        context)
-                                                    .bodyMedium
-                                                    .override(
-                                                      font: GoogleFonts.inter(
-                                                        fontWeight:
-                                                            FlutterFlowTheme.of(
-                                                                    context)
-                                                                .bodyMedium
-                                                                .fontWeight,
-                                                        fontStyle:
-                                                            FlutterFlowTheme.of(
-                                                                    context)
-                                                                .bodyMedium
-                                                                .fontStyle,
-                                                      ),
-                                                      color:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .secondaryText,
-                                                      letterSpacing: 0.0,
-                                                      fontWeight:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .bodyMedium
-                                                              .fontWeight,
-                                                      fontStyle:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .bodyMedium
-                                                              .fontStyle,
-                                                      lineHeight: 1.5,
-                                                    ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: FlutterFlowTheme.of(context)
-                                              .primary10,
-                                          borderRadius:
-                                              BorderRadius.circular(18.0),
-                                          shape: BoxShape.rectangle,
-                                          border: Border.all(
-                                            color: FlutterFlowTheme.of(context)
-                                                .primary,
-                                            width: 1.0,
-                                          ),
-                                        ),
-                                        child: Padding(
-                                          padding: EdgeInsets.all(16.0),
-                                          child: Container(
-                                            child: Container(
-                                              alignment: AlignmentDirectional(
-                                                  0.0, 0.0),
-                                              child: Text(
-                                                'Medium',
-                                                style: FlutterFlowTheme.of(
-                                                        context)
-                                                    .bodyMedium
-                                                    .override(
-                                                      font: GoogleFonts.inter(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontStyle:
-                                                            FlutterFlowTheme.of(
-                                                                    context)
-                                                                .bodyMedium
-                                                                .fontStyle,
-                                                      ),
-                                                      color:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .onSurface,
-                                                      letterSpacing: 0.0,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontStyle:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .bodyMedium
-                                                              .fontStyle,
-                                                      lineHeight: 1.5,
-                                                    ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryBackground,
-                                          borderRadius:
-                                              BorderRadius.circular(18.0),
-                                          shape: BoxShape.rectangle,
-                                          border: Border.all(
-                                            color: FlutterFlowTheme.of(context)
-                                                .alternate,
-                                            width: 1.0,
-                                          ),
-                                        ),
-                                        child: Padding(
-                                          padding: EdgeInsets.all(16.0),
-                                          child: Container(
-                                            child: Container(
-                                              alignment: AlignmentDirectional(
-                                                  0.0, 0.0),
-                                              child: Text(
-                                                'Heavy',
-                                                style: FlutterFlowTheme.of(
-                                                        context)
-                                                    .bodyMedium
-                                                    .override(
-                                                      font: GoogleFonts.inter(
-                                                        fontWeight:
-                                                            FlutterFlowTheme.of(
-                                                                    context)
-                                                                .bodyMedium
-                                                                .fontWeight,
-                                                        fontStyle:
-                                                            FlutterFlowTheme.of(
-                                                                    context)
-                                                                .bodyMedium
-                                                                .fontStyle,
-                                                      ),
-                                                      color:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .secondaryText,
-                                                      letterSpacing: 0.0,
-                                                      fontWeight:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .bodyMedium
-                                                              .fontWeight,
-                                                      fontStyle:
-                                                          FlutterFlowTheme.of(
-                                                                  context)
-                                                              .bodyMedium
-                                                              .fontStyle,
-                                                      lineHeight: 1.5,
-                                                    ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                    _flowTile('Light'),
+                                    _flowTile('Medium'),
+                                    _flowTile('Heavy'),
                                   ].divide(SizedBox(width: 16.0)),
                                 ),
                               ].divide(SizedBox(height: 16.0)),
@@ -694,7 +772,10 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                 ),
                               ].divide(SizedBox(height: 16.0)),
                             ),
-                            Container(
+                            InkWell(
+                              onTap: () => _showMessage(
+                                  'Report upload is coming soon.'),
+                              child: Container(
                               decoration: BoxDecoration(
                                 color: FlutterFlowTheme.of(context)
                                     .secondaryBackground,
@@ -785,6 +866,7 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                 ),
                               ),
                             ),
+                            ),
                             Container(
                               height: 40.0,
                             ),
@@ -815,19 +897,22 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                   Padding(
                     padding: EdgeInsets.all(24.0),
                     child: Container(
-                      child: wrapWithModel(
-                        model: _model.buttonModel2,
-                        updateCallback: () => safeSetState(() {}),
-                        child: ButtonWidget(
-                          content: 'Save Daily Log',
-                          icon_present: false,
-                          icon_end_present: false,
-                          color: FlutterFlowTheme.of(context).secondaryText,
-                          variant: 'primary',
-                          size: 'large',
-                          full_width: true,
-                          loading: false,
-                          disabled: false,
+                      child: InkWell(
+                        onTap: _saving ? null : () => _save(),
+                        child: wrapWithModel(
+                          model: _model.buttonModel2,
+                          updateCallback: () => safeSetState(() {}),
+                          child: ButtonWidget(
+                            content: 'Save Daily Log',
+                            icon_present: false,
+                            icon_end_present: false,
+                            color: FlutterFlowTheme.of(context).secondaryText,
+                            variant: 'primary',
+                            size: 'large',
+                            full_width: true,
+                            loading: _saving,
+                            disabled: _saving,
+                          ),
                         ),
                       ),
                     ),
