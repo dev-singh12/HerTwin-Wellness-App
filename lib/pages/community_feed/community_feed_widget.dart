@@ -23,6 +23,8 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  int _activeTab = 0;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +36,12 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
     _model.dispose();
 
     super.dispose();
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -149,31 +157,43 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
-                                      wrapWithModel(
-                                        model: _model.communityTabItemModel1,
-                                        updateCallback: () =>
-                                            safeSetState(() {}),
-                                        child: CommunityTabItemWidget(
-                                          label: 'Feed',
-                                          active: true,
+                                      InkWell(
+                                        onTap: () => safeSetState(
+                                            () => _activeTab = 0),
+                                        child: wrapWithModel(
+                                          model: _model.communityTabItemModel1,
+                                          updateCallback: () =>
+                                              safeSetState(() {}),
+                                          child: CommunityTabItemWidget(
+                                            label: 'Feed',
+                                            active: _activeTab == 0,
+                                          ),
                                         ),
                                       ),
-                                      wrapWithModel(
-                                        model: _model.communityTabItemModel2,
-                                        updateCallback: () =>
-                                            safeSetState(() {}),
-                                        child: CommunityTabItemWidget(
-                                          label: 'Groups',
-                                          active: false,
+                                      InkWell(
+                                        onTap: () => safeSetState(
+                                            () => _activeTab = 1),
+                                        child: wrapWithModel(
+                                          model: _model.communityTabItemModel2,
+                                          updateCallback: () =>
+                                              safeSetState(() {}),
+                                          child: CommunityTabItemWidget(
+                                            label: 'Groups',
+                                            active: _activeTab == 1,
+                                          ),
                                         ),
                                       ),
-                                      wrapWithModel(
-                                        model: _model.communityTabItemModel3,
-                                        updateCallback: () =>
-                                            safeSetState(() {}),
-                                        child: CommunityTabItemWidget(
-                                          label: 'Saved',
-                                          active: false,
+                                      InkWell(
+                                        onTap: () => safeSetState(
+                                            () => _activeTab = 2),
+                                        child: wrapWithModel(
+                                          model: _model.communityTabItemModel3,
+                                          updateCallback: () =>
+                                              safeSetState(() {}),
+                                          child: CommunityTabItemWidget(
+                                            label: 'Saved',
+                                            active: _activeTab == 2,
+                                          ),
                                         ),
                                       ),
                                     ].divide(SizedBox(width: 24.0)),
@@ -284,7 +304,10 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.center,
                                             children: [
-                                              wrapWithModel(
+                                              InkWell(
+                                                onTap: () => _showMessage(
+                                                    'Joining circles is coming soon.'),
+                                                child: wrapWithModel(
                                                 model:
                                                     _model.interestGroupModel1,
                                                 updateCallback: () =>
@@ -301,7 +324,11 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                                   title: 'PCOS Warriors',
                                                 ),
                                               ),
-                                              wrapWithModel(
+                                              ),
+                                              InkWell(
+                                                onTap: () => _showMessage(
+                                                    'Joining circles is coming soon.'),
+                                                child: wrapWithModel(
                                                 model:
                                                     _model.interestGroupModel2,
                                                 updateCallback: () =>
@@ -319,7 +346,11 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                                   title: 'PMS Relief',
                                                 ),
                                               ),
-                                              wrapWithModel(
+                                              ),
+                                              InkWell(
+                                                onTap: () => _showMessage(
+                                                    'Joining circles is coming soon.'),
+                                                child: wrapWithModel(
                                                 model:
                                                     _model.interestGroupModel3,
                                                 updateCallback: () =>
@@ -336,7 +367,11 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                                   title: 'Hormone Diet',
                                                 ),
                                               ),
-                                              wrapWithModel(
+                                              ),
+                                              InkWell(
+                                                onTap: () => _showMessage(
+                                                    'Joining circles is coming soon.'),
+                                                child: wrapWithModel(
                                                 model:
                                                     _model.interestGroupModel4,
                                                 updateCallback: () =>
@@ -352,6 +387,7 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                                   members: '620',
                                                   title: 'Endo Support',
                                                 ),
+                                              ),
                                               ),
                                             ],
                                           ),
@@ -438,7 +474,10 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                     time: '5 hours ago',
                                   ),
                                 ),
-                                Container(
+                                InkWell(
+                                  onTap: () => _showMessage(
+                                      'Story sharing is coming soon.'),
+                                  child: Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
@@ -567,6 +606,7 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                                     ),
                                   ),
                                 ),
+                                ),
                                 wrapWithModel(
                                   model: _model.storyCardModel3,
                                   updateCallback: () => safeSetState(() {}),
@@ -597,9 +637,8 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
               child: Container(
                 alignment: AlignmentDirectional(1.0, 1.0),
                 child: FloatingActionButton.extended(
-                  onPressed: () {
-                    print('FAB pressed ...');
-                  },
+                  onPressed: () =>
+                      _showMessage('Story sharing is coming soon.'),
                   backgroundColor: FlutterFlowTheme.of(context).primary,
                   icon: Icon(
                     Icons.add_rounded,

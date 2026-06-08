@@ -1,9 +1,13 @@
+import '/auth/auth_manager.dart';
+import '/backend/backend.dart';
+import '/business/cycle_engine.dart';
 import '/components/chat_bubble/chat_bubble_widget.dart';
 import '/components/report_attachment/report_attachment_widget.dart';
 import '/components/text_field/text_field_widget.dart';
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,17 +30,75 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  StreamSubscription<List<CyclesRecord>>? _cyclesSub;
+  CycleStatus _status = CycleEngine.compute(const []);
+  final List<({String message, String time, bool isSent})> _extraMessages = [];
+
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => ConsultationChatModel());
+
+    final uid = AuthManager.instance.currentUid;
+    if (uid != null) {
+      _cyclesSub = streamCycles(uid).listen((cycles) {
+        if (mounted) {
+          safeSetState(() => _status = CycleEngine.compute(cycles));
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _cyclesSub?.cancel();
     _model.dispose();
 
     super.dispose();
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  /// A phase-aware supportive reply used to simulate the clinician responding.
+  String get _autoReply {
+    switch (_status.phase) {
+      case CyclePhase.menstrual:
+        return 'During your menstrual phase, rest and iron-rich foods help most. Are the cramps manageable today?';
+      case CyclePhase.follicular:
+        return 'Your energy is rising in the follicular phase — a great window for movement. Keep me posted on how you feel.';
+      case CyclePhase.ovulation:
+        return 'You\'re near peak energy around ovulation. Stay hydrated, and tell me if anything feels off.';
+      case CyclePhase.luteal:
+        return 'Bloating is common in the luteal phase. Gentle stretching and magnesium can help — shall I note that for you?';
+    }
+  }
+
+  void _sendMessage() {
+    final controller = _model.textFieldModel.inputTextController;
+    final text = (controller?.text ?? '').trim();
+    if (text.isEmpty) return;
+    safeSetState(() {
+      _extraMessages.add((
+        message: text,
+        time: TimeOfDay.fromDateTime(DateTime.now()).format(context),
+        isSent: true,
+      ));
+      controller?.clear();
+    });
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      safeSetState(() {
+        _extraMessages.add((
+          message: _autoReply,
+          time: TimeOfDay.fromDateTime(DateTime.now()).format(context),
+          isSent: false,
+        ));
+      });
+    });
   }
 
   @override
@@ -81,9 +143,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                               color: FlutterFlowTheme.of(context).primaryText,
                               size: 20.0,
                             ),
-                            onPressed: () {
-                              print('IconButton pressed ...');
-                            },
+                            onPressed: () => context.safePop(),
                           ),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(9999.0),
@@ -192,9 +252,8 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                               color: FlutterFlowTheme.of(context).secondary,
                               size: 24.0,
                             ),
-                            onPressed: () {
-                              print('IconButton pressed ...');
-                            },
+                            onPressed: () =>
+                                _showMessage('Consultation history is coming soon.'),
                           ),
                         ].divide(SizedBox(width: 16.0)),
                       ),
@@ -342,6 +401,13 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                                   is_sent: false,
                                 ),
                               ),
+                              ..._extraMessages.map(
+                                (m) => ChatBubbleWidget(
+                                  message: m.message,
+                                  time: m.time,
+                                  is_sent: m.isSent,
+                                ),
+                              ),
                               Padding(
                                 padding: EdgeInsetsDirectional.fromSTEB(
                                     0.0, 0.0, 0.0, 16.0),
@@ -427,7 +493,10 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                             mainAxisAlignment: MainAxisAlignment.start,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Container(
+                              InkWell(
+                                onTap: () => _showMessage(
+                                    'Report upload is coming soon.'),
+                                child: Container(
                                 decoration: BoxDecoration(
                                   color: Color(0xFFE8EAF6),
                                   borderRadius: BorderRadius.circular(9999.0),
@@ -490,7 +559,11 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                                   ),
                                 ),
                               ),
-                              Container(
+                              ),
+                              InkWell(
+                                onTap: () => _showMessage(
+                                    'Prescription requests are coming soon.'),
+                                child: Container(
                                 decoration: BoxDecoration(
                                   color: Color(0xFFFCE4EC),
                                   borderRadius: BorderRadius.circular(9999.0),
@@ -553,6 +626,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                                   ),
                                 ),
                               ),
+                              ),
                             ].divide(SizedBox(width: 8.0)),
                           ),
                           Row(
@@ -583,7 +657,9 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                                   ),
                                 ),
                               ),
-                              Container(
+                              InkWell(
+                                onTap: _sendMessage,
+                                child: Container(
                                 width: 48.0,
                                 height: 48.0,
                                 decoration: BoxDecoration(
@@ -605,6 +681,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                                   color: FlutterFlowTheme.of(context).onSurface,
                                   size: 22.0,
                                 ),
+                              ),
                               ),
                             ].divide(SizedBox(width: 16.0)),
                           ),

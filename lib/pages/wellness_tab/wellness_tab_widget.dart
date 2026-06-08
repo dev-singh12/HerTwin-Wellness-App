@@ -1,7 +1,12 @@
+import '/auth/auth_manager.dart';
+import '/backend/backend.dart';
+import '/business/cycle_engine.dart';
 import '/components/category_chip/category_chip_widget.dart';
 import '/components/wellness_card/wellness_card_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/index.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'wellness_tab_model.dart';
@@ -22,17 +27,86 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  StreamSubscription<List<CyclesRecord>>? _cyclesSub;
+  CycleStatus _status = CycleEngine.compute(const []);
+
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => WellnessTabModel());
+
+    final uid = AuthManager.instance.currentUid;
+    if (uid != null) {
+      _cyclesSub = streamCycles(uid).listen((cycles) {
+        if (mounted) {
+          safeSetState(() => _status = CycleEngine.compute(cycles));
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _cyclesSub?.cancel();
     _model.dispose();
 
     super.dispose();
+  }
+
+  void _openLogSymptoms() =>
+      context.pushNamed(LogSymptomsModalWidget.routeName);
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  /// A featured practice tailored to the user's current cycle phase.
+  ({String title, String subtitle, String duration, String img, String type})
+      get _recommendation {
+    switch (_status.phase) {
+      case CyclePhase.menstrual:
+        return (
+          title: 'Restorative Yin Yoga',
+          subtitle:
+              'Gentle poses to ease cramps and restore energy during your menstrual phase.',
+          duration: '12 mins',
+          img:
+              'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20restorative%20yoga%20in%20a%20calm%20room',
+          type: 'video',
+        );
+      case CyclePhase.follicular:
+        return (
+          title: 'Follicular Flow Yoga',
+          subtitle:
+              'Boost energy and flexibility during your follicular phase.',
+          duration: '15 mins',
+          img:
+              'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20yoga%20in%20a%20sunlit%20minimal%20room',
+          type: 'video',
+        );
+      case CyclePhase.ovulation:
+        return (
+          title: 'Energising HIIT Flow',
+          subtitle:
+              'Channel your peak energy with a dynamic session during ovulation.',
+          duration: '20 mins',
+          img:
+              'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20energetic%20workout%20in%20bright%20studio',
+          type: 'video',
+        );
+      case CyclePhase.luteal:
+        return (
+          title: 'Calming Wind-Down',
+          subtitle:
+              'Soothe PMS tension and unwind gently during your luteal phase.',
+          duration: '10 mins',
+          img:
+              'https://dimg.dreamflow.cloud/v1/image/woman%20stretching%20gently%20in%20soft%20evening%20light',
+          type: 'video',
+        );
+    }
   }
 
   @override
@@ -276,13 +350,11 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                           model: _model.wellnessCardModel1,
                           updateCallback: () => safeSetState(() {}),
                           child: WellnessCardWidget(
-                            duration: '15 mins',
-                            img_desc:
-                                'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20yoga%20in%20a%20sunlit%20minimal%20room',
-                            subtitle:
-                                'Boost energy and flexibility during your follicular phase.',
-                            title: 'Follicular Flow Yoga',
-                            type: 'video',
+                            duration: _recommendation.duration,
+                            img_desc: _recommendation.img,
+                            subtitle: _recommendation.subtitle,
+                            title: _recommendation.title,
+                            type: _recommendation.type,
                           ),
                         ),
                         Container(
@@ -313,7 +385,9 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                           children: [
                             Expanded(
                               flex: 1,
-                              child: Container(
+                              child: InkWell(
+                                onTap: _openLogSymptoms,
+                                child: Container(
                                 height: 120.0,
                                 decoration: BoxDecoration(
                                   color: Color(0xFFF3E5F5),
@@ -377,10 +451,14 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                   ),
                                 ),
                               ),
+                              ),
                             ),
                             Expanded(
                               flex: 1,
-                              child: Container(
+                              child: InkWell(
+                                onTap: () => _showMessage(
+                                    'Guided breathwork is coming soon.'),
+                                child: Container(
                                 height: 120.0,
                                 decoration: BoxDecoration(
                                   color: Color(0xFFE1F5FE),
@@ -443,6 +521,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                     ),
                                   ),
                                 ),
+                              ),
                               ),
                             ),
                           ].divide(SizedBox(width: 16.0)),
@@ -508,9 +587,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
               child: Container(
                 alignment: AlignmentDirectional(1.0, 1.0),
                 child: FloatingActionButton.extended(
-                  onPressed: () {
-                    print('FAB pressed ...');
-                  },
+                  onPressed: _openLogSymptoms,
                   backgroundColor: FlutterFlowTheme.of(context).primary,
                   icon: Icon(
                     Icons.add_rounded,
