@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1056460985345",
+    "project_id": "hertwin-wellness",
+    "storage_bucket": "hertwin-wellness.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1056460985345:android:9d87cb5ad7d6dceecddc00",
+        "android_client_info": {
+          "package_name": "com.mycompany.hertwinwellness"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8_xh48Ve0dDWoVExi8dFK6yd3XqamkZ0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

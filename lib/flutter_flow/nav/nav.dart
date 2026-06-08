@@ -26,6 +26,8 @@ class AppStateNotifier extends ChangeNotifier {
     showSplashImage = false;
     notifyListeners();
   }
+
+  void update() => notifyListeners();
 }
 
 GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(

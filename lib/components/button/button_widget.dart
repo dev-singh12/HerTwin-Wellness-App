@@ -1,16 +1,13 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:provider/provider.dart';
 import 'button_model.dart';
 export 'button_model.dart';
 
 class ButtonWidget extends StatefulWidget {
-  const ButtonWidget({
+  ButtonWidget({
     super.key,
     String? content,
     this.icon,
@@ -26,7 +23,7 @@ class ButtonWidget extends StatefulWidget {
   })  : this.content = content ?? 'Sign in with Email',
         this.icon_present = icon_present ?? true,
         this.icon_end_present = icon_end_present ?? false,
-        this.color = color ?? FlutterFlowTheme.of(context).secondaryText,
+        this.color = color,
         this.variant = variant ?? 'ghost',
         this.size = size ?? 'medium',
         this.full_width = full_width ?? false,
@@ -38,7 +35,7 @@ class ButtonWidget extends StatefulWidget {
   final bool icon_present;
   final Widget? icon_end;
   final bool icon_end_present;
-  final Color color;
+  final Color? color;
   final String variant;
   final String size;
   final bool full_width;

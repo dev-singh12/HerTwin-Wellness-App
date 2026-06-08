@@ -1,22 +1,19 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'phase_legend_item_model.dart';
 export 'phase_legend_item_model.dart';
 
 class PhaseLegendItemWidget extends StatefulWidget {
-  const PhaseLegendItemWidget({
+  PhaseLegendItemWidget({
     super.key,
     Color? color,
     String? label,
-  })  : this.color = color ?? FlutterFlowTheme.of(context).primary,
+  })  : this.color = color,
         this.label = label ?? 'Menstruation';
 
-  final Color color;
+  final Color? color;
   final String label;
 
   @override

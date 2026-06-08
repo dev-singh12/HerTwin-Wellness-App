@@ -1,15 +1,12 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'calendar_day_cell_model.dart';
 export 'calendar_day_cell_model.dart';
 
 class CalendarDayCellWidget extends StatefulWidget {
-  const CalendarDayCellWidget({
+  CalendarDayCellWidget({
     super.key,
     String? day_num,
     bool? has_event,
@@ -18,13 +15,13 @@ class CalendarDayCellWidget extends StatefulWidget {
     bool? is_today,
   })  : this.day_num = day_num ?? '25',
         this.has_event = has_event ?? false,
-        this.phase_color = phase_color ?? FlutterFlowTheme.of(context).primary,
+        this.phase_color = phase_color,
         this.is_selected = is_selected ?? true,
         this.is_today = is_today ?? false;
 
   final String day_num;
   final bool has_event;
-  final Color phase_color;
+  final Color? phase_color;
   final bool is_selected;
   final bool is_today;
 
