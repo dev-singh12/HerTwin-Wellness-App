@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -36,6 +37,20 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
       refreshListenable: appStateNotifier,
       navigatorKey: appNavigatorKey,
       errorBuilder: (context, state) => AuthScreenWidget(),
+      redirect: (context, state) {
+        final loggedIn = FirebaseAuth.instance.currentUser != null;
+        final location = state.matchedLocation;
+        final onAuthScreen = location == '/' ||
+            location == AuthScreenWidget.routePath;
+
+        if (!loggedIn) {
+          return onAuthScreen ? null : AuthScreenWidget.routePath;
+        }
+        if (onAuthScreen) {
+          return HomeDashboardWidget.routePath;
+        }
+        return null;
+      },
       routes: [
         FFRoute(
           name: '_initialize',

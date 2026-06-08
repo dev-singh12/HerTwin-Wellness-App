@@ -1,11 +1,15 @@
+import '/auth/auth_manager.dart';
+import '/backend/backend.dart';
 import '/components/button/button_widget.dart';
 import '/components/social_auth_button/social_auth_button_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/index.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'auth_screen_model.dart';
+import 'email_auth_sheet.dart';
 export 'auth_screen_model.dart';
 
 class AuthScreenWidget extends StatefulWidget {
@@ -23,6 +27,8 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  bool _googleLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +40,42 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
     _model.dispose();
 
     super.dispose();
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: FlutterFlowTheme.of(context).error,
+        ),
+      );
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    if (_googleLoading) return;
+    setState(() => _googleLoading = true);
+    try {
+      await AuthManager.instance.signInWithGoogle();
+      final uid = AuthManager.instance.currentUid;
+      var onboardingComplete = false;
+      if (uid != null) {
+        final record = await getUser(uid);
+        onboardingComplete = record?.onboardingComplete ?? false;
+      }
+      if (!mounted) return;
+      context.goNamed(
+        onboardingComplete
+            ? HomeDashboardWidget.routeName
+            : OnboardingStepFormWidget.routeName,
+      );
+    } catch (e) {
+      _showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
   }
 
   @override
@@ -170,42 +212,72 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                         mainAxisAlignment: MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          wrapWithModel(
-                            model: _model.socialAuthButtonModel1,
-                            updateCallback: () => safeSetState(() {}),
-                            child: SocialAuthButtonWidget(
-                              provider_icon:
-                                  'https://cdn.simpleicons.org/google/3d3d3d.svg',
-                              provider_name: 'Google',
-                            ),
-                          ),
-                          wrapWithModel(
-                            model: _model.socialAuthButtonModel2,
-                            updateCallback: () => safeSetState(() {}),
-                            child: SocialAuthButtonWidget(
-                              provider_icon:
-                                  'https://cdn.simpleicons.org/apple/3d3d3d.svg',
-                              provider_name: 'Apple',
-                            ),
-                          ),
-                          wrapWithModel(
-                            model: _model.buttonModel,
-                            updateCallback: () => safeSetState(() {}),
-                            child: ButtonWidget(
-                              content: 'Sign in with Email',
-                              icon: Icon(
-                                Icons.mail_outline_rounded,
-                                color: FlutterFlowTheme.of(context).primary,
-                                size: 16.0,
+                          Stack(
+                            alignment: AlignmentDirectional.center,
+                            children: [
+                              Opacity(
+                                opacity: _googleLoading ? 0.5 : 1.0,
+                                child: InkWell(
+                                  onTap: _googleLoading
+                                      ? null
+                                      : _handleGoogleSignIn,
+                                  child: wrapWithModel(
+                                    model: _model.socialAuthButtonModel1,
+                                    updateCallback: () => safeSetState(() {}),
+                                    child: SocialAuthButtonWidget(
+                                      provider_icon:
+                                          'https://cdn.simpleicons.org/google/3d3d3d.svg',
+                                      provider_name: 'Google',
+                                    ),
+                                  ),
+                                ),
                               ),
-                              icon_present: true,
-                              icon_end_present: false,
-                              color: FlutterFlowTheme.of(context).secondaryText,
-                              variant: 'ghost',
-                              size: 'medium',
-                              full_width: false,
-                              loading: false,
-                              disabled: false,
+                              if (_googleLoading)
+                                SizedBox(
+                                  width: 22.0,
+                                  height: 22.0,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: FlutterFlowTheme.of(context).primary,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          InkWell(
+                            onTap: () => _showError(
+                                'Apple sign-in is coming soon.'),
+                            child: wrapWithModel(
+                              model: _model.socialAuthButtonModel2,
+                              updateCallback: () => safeSetState(() {}),
+                              child: SocialAuthButtonWidget(
+                                provider_icon:
+                                    'https://cdn.simpleicons.org/apple/3d3d3d.svg',
+                                provider_name: 'Apple',
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () => showEmailAuthSheet(context),
+                            child: wrapWithModel(
+                              model: _model.buttonModel,
+                              updateCallback: () => safeSetState(() {}),
+                              child: ButtonWidget(
+                                content: 'Sign in with Email',
+                                icon: Icon(
+                                  Icons.mail_outline_rounded,
+                                  color: FlutterFlowTheme.of(context).primary,
+                                  size: 16.0,
+                                ),
+                                icon_present: true,
+                                icon_end_present: false,
+                                color:
+                                    FlutterFlowTheme.of(context).secondaryText,
+                                variant: 'ghost',
+                                size: 'medium',
+                                full_width: false,
+                                loading: false,
+                                disabled: false,
+                              ),
                             ),
                           ),
                         ].divide(SizedBox(height: 16.0)),
