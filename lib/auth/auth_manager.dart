@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '/backend/backend.dart';
@@ -144,9 +144,13 @@ class AuthManager {
   Future<void> _safeFirestore(Future<void> Function() op) async {
     try {
       await op();
-    } catch (_) {
+    } catch (e) {
       // Auth has already succeeded; a Firestore hiccup (e.g. DB not yet
-      // provisioned or offline) shouldn't surface as an auth failure.
+      // provisioned, offline, or rules denying access) shouldn't surface as
+      // an auth failure — but log it so it isn't silently invisible.
+      // A `permission-denied` here usually means firestore.rules haven't been
+      // deployed for this project.
+      debugPrint('[AuthManager] Firestore write skipped after auth: $e');
     }
   }
 }
