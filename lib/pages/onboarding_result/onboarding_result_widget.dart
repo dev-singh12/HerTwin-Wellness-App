@@ -4,6 +4,7 @@ import '/components/result_metric/result_metric_widget.dart';
 import '/flutter_flow/flutter_flow_charts.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/index.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
@@ -533,27 +534,34 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                           mainAxisAlignment: MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            wrapWithModel(
-                              model: _model.buttonModel1,
-                              updateCallback: () => safeSetState(() {}),
-                              child: ButtonWidget(
-                                content: 'Enter My Dashboard',
-                                icon_present: false,
-                                icon_end_present: false,
-                                color:
-                                    FlutterFlowTheme.of(context).secondaryText,
-                                variant: 'primary',
-                                size: 'large',
-                                full_width: true,
-                                loading: false,
-                                disabled: false,
+                            InkWell(
+                              onTap: () => context
+                                  .goNamed(HomeDashboardWidget.routeName),
+                              child: wrapWithModel(
+                                model: _model.buttonModel1,
+                                updateCallback: () => safeSetState(() {}),
+                                child: ButtonWidget(
+                                  content: 'Enter My Dashboard',
+                                  icon_present: false,
+                                  icon_end_present: false,
+                                  color:
+                                      FlutterFlowTheme.of(context).secondaryText,
+                                  variant: 'primary',
+                                  size: 'large',
+                                  full_width: true,
+                                  loading: false,
+                                  disabled: false,
+                                ),
                               ),
                             ),
-                            wrapWithModel(
-                              model: _model.buttonModel2,
-                              updateCallback: () => safeSetState(() {}),
-                              child: ButtonWidget(
-                                content: 'Retake Assessment',
+                            InkWell(
+                              onTap: () => context.goNamed(
+                                  OnboardingStepFormWidget.routeName),
+                              child: wrapWithModel(
+                                model: _model.buttonModel2,
+                                updateCallback: () => safeSetState(() {}),
+                                child: ButtonWidget(
+                                  content: 'Retake Assessment',
                                 icon: Icon(
                                   Icons.refresh_rounded,
                                   color: FlutterFlowTheme.of(context).primary,
@@ -568,6 +576,7 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                 full_width: true,
                                 loading: false,
                                 disabled: false,
+                                ),
                               ),
                             ),
                           ].divide(SizedBox(height: 16.0)),

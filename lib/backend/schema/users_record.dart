@@ -7,9 +7,12 @@ class UsersRecord {
     this.displayName = '',
     this.photoUrl = '',
     this.dateOfBirth,
+    this.age,
     this.height,
     this.weight,
     this.bloodType = '',
+    this.conditions = const <String>[],
+    this.symptoms = const <String>[],
     this.onboardingComplete = false,
     this.createdAt,
     this.lastActiveAt,
@@ -20,9 +23,12 @@ class UsersRecord {
   final String displayName;
   final String photoUrl;
   final DateTime? dateOfBirth;
+  final int? age;
   final double? height;
   final double? weight;
   final String bloodType;
+  final List<String> conditions;
+  final List<String> symptoms;
   final bool onboardingComplete;
   final DateTime? createdAt;
   final DateTime? lastActiveAt;
@@ -34,9 +40,17 @@ class UsersRecord {
         displayName: (data['displayName'] as String?) ?? '',
         photoUrl: (data['photoUrl'] as String?) ?? '',
         dateOfBirth: (data['dateOfBirth'] as Timestamp?)?.toDate(),
+        age: (data['age'] as num?)?.toInt(),
         height: (data['height'] as num?)?.toDouble(),
         weight: (data['weight'] as num?)?.toDouble(),
         bloodType: (data['bloodType'] as String?) ?? '',
+        conditions: (data['conditions'] as List?)
+                ?.map((e) => e as String)
+                .toList() ??
+            const <String>[],
+        symptoms:
+            (data['symptoms'] as List?)?.map((e) => e as String).toList() ??
+                const <String>[],
         onboardingComplete: (data['onboardingComplete'] as bool?) ?? false,
         createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
         lastActiveAt: (data['lastActiveAt'] as Timestamp?)?.toDate(),
@@ -55,9 +69,12 @@ class UsersRecord {
         'photoUrl': photoUrl,
         'dateOfBirth':
             dateOfBirth == null ? null : Timestamp.fromDate(dateOfBirth!),
+        'age': age,
         'height': height,
         'weight': weight,
         'bloodType': bloodType,
+        'conditions': conditions,
+        'symptoms': symptoms,
         'onboardingComplete': onboardingComplete,
         'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
         'lastActiveAt':
@@ -70,9 +87,12 @@ class UsersRecord {
     String? displayName,
     String? photoUrl,
     DateTime? dateOfBirth,
+    int? age,
     double? height,
     double? weight,
     String? bloodType,
+    List<String>? conditions,
+    List<String>? symptoms,
     bool? onboardingComplete,
     DateTime? createdAt,
     DateTime? lastActiveAt,
@@ -83,9 +103,12 @@ class UsersRecord {
         displayName: displayName ?? this.displayName,
         photoUrl: photoUrl ?? this.photoUrl,
         dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+        age: age ?? this.age,
         height: height ?? this.height,
         weight: weight ?? this.weight,
         bloodType: bloodType ?? this.bloodType,
+        conditions: conditions ?? this.conditions,
+        symptoms: symptoms ?? this.symptoms,
         onboardingComplete: onboardingComplete ?? this.onboardingComplete,
         createdAt: createdAt ?? this.createdAt,
         lastActiveAt: lastActiveAt ?? this.lastActiveAt,
