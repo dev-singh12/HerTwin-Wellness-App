@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import 'schema/users_record.dart';
 import 'schema/cycles_record.dart';
@@ -46,6 +49,24 @@ Future<void> updateUser(String uid, Map<String, dynamic> data) =>
     userRef(uid).update(data);
 
 Future<void> deleteUser(String uid) => userRef(uid).delete();
+
+// ---------------------------------------------------------------------------
+// Firebase Storage — profile photos
+// ---------------------------------------------------------------------------
+
+FirebaseStorage get _storage => FirebaseStorage.instance;
+
+/// Uploads raw image [bytes] to `users/{uid}/profile.jpg` and returns the
+/// public download URL. Works on web and mobile (bytes-based, no dart:io).
+Future<String> uploadProfilePhoto(
+  String uid,
+  Uint8List bytes, {
+  String contentType = 'image/jpeg',
+}) async {
+  final ref = _storage.ref().child('users/$uid/profile.jpg');
+  await ref.putData(bytes, SettableMetadata(contentType: contentType));
+  return ref.getDownloadURL();
+}
 
 // ---------------------------------------------------------------------------
 // users/{uid}/cycles

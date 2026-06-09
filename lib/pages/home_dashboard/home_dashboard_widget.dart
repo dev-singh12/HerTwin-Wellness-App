@@ -247,28 +247,37 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         ),
                                       ],
                                     ),
-                                    Container(
-                                      width: 48.0,
-                                      height: 48.0,
-                                      decoration: BoxDecoration(
-                                        borderRadius:
-                                            BorderRadius.circular(24.0),
-                                      ),
-                                      alignment: AlignmentDirectional(0.0, 0.0),
-                                      child: ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(24.0),
-                                        child: CachedNetworkImage(
-                                          fadeInDuration:
-                                              Duration(milliseconds: 0),
-                                          fadeOutDuration:
-                                              Duration(milliseconds: 0),
-                                          imageUrl:
-                                              'https://dimg.dreamflow.cloud/v1/image/soft%20digital%20painting%20of%20a%20woman',
-                                          width: 48.0,
-                                          height: 48.0,
-                                          fit: BoxFit.cover,
-                                          alignment: Alignment(0.0, 0.0),
+                                    InkWell(
+                                      borderRadius: BorderRadius.circular(24.0),
+                                      onTap: () => context
+                                          .pushNamed(ProfileWidget.routeName),
+                                      child: Container(
+                                        width: 48.0,
+                                        height: 48.0,
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(24.0),
+                                        ),
+                                        alignment:
+                                            AlignmentDirectional(0.0, 0.0),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(24.0),
+                                          child: CachedNetworkImage(
+                                            fadeInDuration:
+                                                Duration(milliseconds: 0),
+                                            fadeOutDuration:
+                                                Duration(milliseconds: 0),
+                                            imageUrl: (_user?.photoUrl ?? '')
+                                                    .trim()
+                                                    .isNotEmpty
+                                                ? _user!.photoUrl
+                                                : 'https://dimg.dreamflow.cloud/v1/image/soft%20digital%20painting%20of%20a%20woman',
+                                            width: 48.0,
+                                            height: 48.0,
+                                            fit: BoxFit.cover,
+                                            alignment: Alignment(0.0, 0.0),
+                                          ),
                                         ),
                                       ),
                                     ),

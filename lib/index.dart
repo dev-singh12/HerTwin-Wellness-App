@@ -14,3 +14,5 @@ export '/pages/consultation_chat/consultation_chat_widget.dart'
     show ConsultationChatWidget;
 export '/pages/community_feed/community_feed_widget.dart'
     show CommunityFeedWidget;
+export '/pages/profile/profile_widget.dart' show ProfileWidget;
+export '/pages/insights/insights_widget.dart' show InsightsWidget;

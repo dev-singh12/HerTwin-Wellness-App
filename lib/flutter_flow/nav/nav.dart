@@ -101,6 +101,16 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           name: CommunityFeedWidget.routeName,
           path: CommunityFeedWidget.routePath,
           builder: (context, params) => CommunityFeedWidget(),
+        ),
+        FFRoute(
+          name: ProfileWidget.routeName,
+          path: ProfileWidget.routePath,
+          builder: (context, params) => ProfileWidget(),
+        ),
+        FFRoute(
+          name: InsightsWidget.routeName,
+          path: InsightsWidget.routePath,
+          builder: (context, params) => InsightsWidget(),
         )
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );
