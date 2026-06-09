@@ -127,6 +127,22 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
   void _openLogSymptoms() =>
       context.pushNamed(LogSymptomsModalWidget.routeName);
 
+  void _openTrack() => context.pushNamed(TrackTabWidget.routeName);
+
+  /// Locally tracked completion of today's rituals (indices 0..2).
+  final Set<int> _ritualsDone = {0, 2};
+
+  void _toggleRitual(int index) =>
+      safeSetState(() => _ritualsDone.contains(index)
+          ? _ritualsDone.remove(index)
+          : _ritualsDone.add(index));
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final pieChartPieChartColorsList = [
@@ -302,7 +318,9 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                       Padding(
                                         padding: EdgeInsetsDirectional.fromSTEB(
                                             16.0, 24.0, 16.0, 24.0),
-                                        child: Container(
+                                        child: InkWell(
+                                          onTap: _openTrack,
+                                          child: Container(
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             mainAxisAlignment:
@@ -396,6 +414,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                               ),
                                             ].divide(SizedBox(width: 16.0)),
                                           ),
+                                        ),
                                         ),
                                       ),
                                     ],
@@ -718,7 +737,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                             lineHeight: 1.4,
                                           ),
                                     ),
-                                    wrapWithModel(
+                                    InkWell(
+                                      onTap: () => _showMessage(
+                                          'Ritual editing is coming soon.'),
+                                      child: wrapWithModel(
                                       model: _model.buttonModel,
                                       updateCallback: () => safeSetState(() {}),
                                       child: ButtonWidget(
@@ -734,6 +756,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         disabled: false,
                                       ),
                                     ),
+                                    ),
                                   ],
                                 ),
                                 Column(
@@ -741,7 +764,9 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                   mainAxisAlignment: MainAxisAlignment.start,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    wrapWithModel(
+                                    InkWell(
+                                      onTap: () => _toggleRitual(0),
+                                      child: wrapWithModel(
                                       model: _model.ritualTileModel1,
                                       updateCallback: () => safeSetState(() {}),
                                       child: RitualTileWidget(
@@ -754,10 +779,13 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         ),
                                         time: '09:00 AM',
                                         title: 'Vitamin B Complex',
-                                        done: true,
+                                        done: _ritualsDone.contains(0),
                                       ),
                                     ),
-                                    wrapWithModel(
+                                    ),
+                                    InkWell(
+                                      onTap: () => _toggleRitual(1),
+                                      child: wrapWithModel(
                                       model: _model.ritualTileModel2,
                                       updateCallback: () => safeSetState(() {}),
                                       child: RitualTileWidget(
@@ -770,10 +798,13 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         ),
                                         time: '10:30 PM',
                                         title: 'Evening Meditation',
-                                        done: false,
+                                        done: _ritualsDone.contains(1),
                                       ),
                                     ),
-                                    wrapWithModel(
+                                    ),
+                                    InkWell(
+                                      onTap: () => _toggleRitual(2),
+                                      child: wrapWithModel(
                                       model: _model.ritualTileModel3,
                                       updateCallback: () => safeSetState(() {}),
                                       child: RitualTileWidget(
@@ -786,8 +817,9 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         ),
                                         time: 'All Day',
                                         title: 'Hydration Goal',
-                                        done: true,
+                                        done: _ritualsDone.contains(2),
                                       ),
+                                    ),
                                     ),
                                   ].divide(SizedBox(height: 4.0)),
                                 ),

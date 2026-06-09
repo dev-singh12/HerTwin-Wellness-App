@@ -68,6 +68,22 @@ Future<String> uploadProfilePhoto(
   return ref.getDownloadURL();
 }
 
+/// Uploads a prescription / medical report to
+/// `users/{uid}/prescriptions/{timestamp}.{ext}` and returns the download URL.
+/// Works on web and mobile (bytes-based, no dart:io).
+Future<String> uploadPrescription(
+  String uid,
+  Uint8List bytes, {
+  String contentType = 'image/jpeg',
+  String extension = 'jpg',
+}) async {
+  final stamp = DateTime.now().millisecondsSinceEpoch;
+  final ref =
+      _storage.ref().child('users/$uid/prescriptions/$stamp.$extension');
+  await ref.putData(bytes, SettableMetadata(contentType: contentType));
+  return ref.getDownloadURL();
+}
+
 // ---------------------------------------------------------------------------
 // users/{uid}/cycles
 // ---------------------------------------------------------------------------

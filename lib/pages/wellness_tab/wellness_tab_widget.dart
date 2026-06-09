@@ -30,6 +30,10 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
   StreamSubscription<List<CyclesRecord>>? _cyclesSub;
   CycleStatus _status = CycleEngine.compute(const []);
 
+  /// Selected wellness category: 0 All, 1 Yoga, 2 Mind, 3 Guides, 4 Meditation.
+  int _activeCategory = 0;
+  static const _categoryLabels = ['All', 'Yoga', 'Mind', 'Guides', 'Meditation'];
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +59,14 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
 
   void _openLogSymptoms() =>
       context.pushNamed(LogSymptomsModalWidget.routeName);
+
+  void _selectCategory(int index) {
+    if (_activeCategory == index) return;
+    safeSetState(() => _activeCategory = index);
+    final label = _categoryLabels[index];
+    _showMessage(
+        index == 0 ? 'Showing all practices.' : 'Showing $label practices.');
+  }
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -210,75 +222,105 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                               mainAxisAlignment: MainAxisAlignment.start,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                wrapWithModel(
+                                InkWell(
+                                  onTap: () => _selectCategory(0),
+                                  child: wrapWithModel(
                                   model: _model.categoryChipModel1,
                                   updateCallback: () => safeSetState(() {}),
                                   child: CategoryChipWidget(
                                     icon: Icon(
                                       Icons.grid_view_rounded,
-                                      color: FlutterFlowTheme.of(context)
-                                          .onPrimary,
+                                      color: _activeCategory == 0
+                                          ? FlutterFlowTheme.of(context)
+                                              .onPrimary
+                                          : FlutterFlowTheme.of(context)
+                                              .secondaryText,
                                       size: 18.0,
                                     ),
                                     label: 'All',
-                                    selected: true,
+                                    selected: _activeCategory == 0,
                                   ),
                                 ),
-                                wrapWithModel(
+                                ),
+                                InkWell(
+                                  onTap: () => _selectCategory(1),
+                                  child: wrapWithModel(
                                   model: _model.categoryChipModel2,
                                   updateCallback: () => safeSetState(() {}),
                                   child: CategoryChipWidget(
                                     icon: Icon(
                                       Icons.spa_rounded,
-                                      color: FlutterFlowTheme.of(context)
-                                          .secondaryText,
+                                      color: _activeCategory == 1
+                                          ? FlutterFlowTheme.of(context)
+                                              .onPrimary
+                                          : FlutterFlowTheme.of(context)
+                                              .secondaryText,
                                       size: 18.0,
                                     ),
                                     label: 'Yoga',
-                                    selected: false,
+                                    selected: _activeCategory == 1,
                                   ),
                                 ),
-                                wrapWithModel(
+                                ),
+                                InkWell(
+                                  onTap: () => _selectCategory(2),
+                                  child: wrapWithModel(
                                   model: _model.categoryChipModel3,
                                   updateCallback: () => safeSetState(() {}),
                                   child: CategoryChipWidget(
                                     icon: Icon(
                                       Icons.psychology_rounded,
-                                      color: FlutterFlowTheme.of(context)
-                                          .secondaryText,
+                                      color: _activeCategory == 2
+                                          ? FlutterFlowTheme.of(context)
+                                              .onPrimary
+                                          : FlutterFlowTheme.of(context)
+                                              .secondaryText,
                                       size: 18.0,
                                     ),
                                     label: 'Mind',
-                                    selected: false,
+                                    selected: _activeCategory == 2,
                                   ),
                                 ),
-                                wrapWithModel(
+                                ),
+                                InkWell(
+                                  onTap: () => _selectCategory(3),
+                                  child: wrapWithModel(
                                   model: _model.categoryChipModel4,
                                   updateCallback: () => safeSetState(() {}),
                                   child: CategoryChipWidget(
                                     icon: Icon(
                                       Icons.auto_stories_rounded,
-                                      color: FlutterFlowTheme.of(context)
-                                          .secondaryText,
+                                      color: _activeCategory == 3
+                                          ? FlutterFlowTheme.of(context)
+                                              .onPrimary
+                                          : FlutterFlowTheme.of(context)
+                                              .secondaryText,
                                       size: 18.0,
                                     ),
                                     label: 'Guides',
-                                    selected: false,
+                                    selected: _activeCategory == 3,
                                   ),
                                 ),
-                                wrapWithModel(
+                                ),
+                                InkWell(
+                                  onTap: () => _selectCategory(4),
+                                  child: wrapWithModel(
                                   model: _model.categoryChipModel5,
                                   updateCallback: () => safeSetState(() {}),
                                   child: CategoryChipWidget(
                                     icon: Icon(
                                       Icons.self_improvement_rounded,
-                                      color: FlutterFlowTheme.of(context)
-                                          .secondaryText,
+                                      color: _activeCategory == 4
+                                          ? FlutterFlowTheme.of(context)
+                                              .onPrimary
+                                          : FlutterFlowTheme.of(context)
+                                              .secondaryText,
                                       size: 18.0,
                                     ),
                                     label: 'Meditation',
-                                    selected: false,
+                                    selected: _activeCategory == 4,
                                   ),
+                                ),
                                 ),
                               ].divide(SizedBox(width: 16.0)),
                             ),
@@ -319,7 +361,10 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                     lineHeight: 1.4,
                                   ),
                             ),
-                            Text(
+                            InkWell(
+                              onTap: () => _showMessage(
+                                  'The full practice library is coming soon.'),
+                              child: Text(
                               'See All',
                               style: FlutterFlowTheme.of(context)
                                   .labelLarge
@@ -333,7 +378,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                           .fontStyle,
                                     ),
                                     color:
-                                        FlutterFlowTheme.of(context).onSurface,
+                                        FlutterFlowTheme.of(context).primary,
                                     letterSpacing: 0.0,
                                     fontWeight: FlutterFlowTheme.of(context)
                                         .labelLarge
@@ -344,9 +389,13 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                     lineHeight: 1.3,
                                   ),
                             ),
+                            ),
                           ],
                         ),
-                        wrapWithModel(
+                        InkWell(
+                          onTap: () => _showMessage(
+                              '"${_recommendation.title}" will be available soon.'),
+                          child: wrapWithModel(
                           model: _model.wellnessCardModel1,
                           updateCallback: () => safeSetState(() {}),
                           child: WellnessCardWidget(
@@ -356,6 +405,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                             title: _recommendation.title,
                             type: _recommendation.type,
                           ),
+                        ),
                         ),
                         Container(
                           height: 16.0,
@@ -547,7 +597,10 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                     lineHeight: 1.4,
                                   ),
                         ),
-                        wrapWithModel(
+                        InkWell(
+                          onTap: () => _showMessage(
+                              '"Understanding PCOS" article is coming soon.'),
+                          child: wrapWithModel(
                           model: _model.wellnessCardModel2,
                           updateCallback: () => safeSetState(() {}),
                           child: WellnessCardWidget(
@@ -560,7 +613,11 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                             type: 'article',
                           ),
                         ),
-                        wrapWithModel(
+                        ),
+                        InkWell(
+                          onTap: () => _showMessage(
+                              '"Nutrition for PMS" article is coming soon.'),
+                          child: wrapWithModel(
                           model: _model.wellnessCardModel3,
                           updateCallback: () => safeSetState(() {}),
                           child: WellnessCardWidget(
@@ -572,6 +629,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                             title: 'Nutrition for PMS',
                             type: 'article',
                           ),
+                        ),
                         ),
                       ].divide(SizedBox(height: 16.0)),
                     ),

@@ -75,6 +75,8 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
   void _openLogSymptoms() =>
       context.pushNamed(LogSymptomsModalWidget.routeName);
 
+  void _openInsights() => context.pushNamed(InsightsWidget.routeName);
+
   Color _phaseColor(BuildContext context, CyclePhase phase) {
     switch (phase) {
       case CyclePhase.menstrual:
@@ -261,9 +263,7 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
                                   color: FlutterFlowTheme.of(context).secondary,
                                   size: 24.0,
                                 ),
-                                onPressed: () {
-                                  print('IconButton pressed ...');
-                                },
+                                onPressed: _openInsights,
                               ),
                             ],
                           ),
@@ -924,13 +924,30 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
                                                   lineHeight: 1.4,
                                                 ),
                                           ),
-                                          Text(
-                                            'See All',
-                                            style: FlutterFlowTheme.of(context)
-                                                .labelLarge
-                                                .override(
-                                                  font: GoogleFonts
-                                                      .plusJakartaSans(
+                                          InkWell(
+                                            onTap: _openInsights,
+                                            child: Text(
+                                              'See All',
+                                              style: FlutterFlowTheme.of(context)
+                                                  .labelLarge
+                                                  .override(
+                                                    font: GoogleFonts
+                                                        .plusJakartaSans(
+                                                      fontWeight:
+                                                          FlutterFlowTheme.of(
+                                                                  context)
+                                                              .labelLarge
+                                                              .fontWeight,
+                                                      fontStyle:
+                                                          FlutterFlowTheme.of(
+                                                                  context)
+                                                              .labelLarge
+                                                              .fontStyle,
+                                                    ),
+                                                    color: FlutterFlowTheme.of(
+                                                            context)
+                                                        .primary,
+                                                    letterSpacing: 0.0,
                                                     fontWeight:
                                                         FlutterFlowTheme.of(
                                                                 context)
@@ -941,23 +958,9 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
                                                                 context)
                                                             .labelLarge
                                                             .fontStyle,
+                                                    lineHeight: 1.3,
                                                   ),
-                                                  color: FlutterFlowTheme.of(
-                                                          context)
-                                                      .onSurface,
-                                                  letterSpacing: 0.0,
-                                                  fontWeight:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelLarge
-                                                          .fontWeight,
-                                                  fontStyle:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelLarge
-                                                          .fontStyle,
-                                                  lineHeight: 1.3,
-                                                ),
+                                            ),
                                           ),
                                         ],
                                       ),

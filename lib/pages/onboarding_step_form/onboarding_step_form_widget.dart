@@ -12,6 +12,7 @@ import '/index.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'onboarding_step_form_model.dart';
 export 'onboarding_step_form_model.dart';
 
@@ -34,6 +35,8 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
   final Set<String> _selectedConditions = <String>{};
   final Set<String> _selectedSymptoms = <String>{};
   bool _saving = false;
+  bool _uploadingPrescription = false;
+  String? _prescriptionUrl;
 
   @override
   void initState() {
@@ -76,6 +79,38 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
       );
   }
 
+  Future<void> _pickAndUploadPrescription() async {
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null || _uploadingPrescription) return;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      setState(() => _uploadingPrescription = true);
+      final bytes = await picked.readAsBytes();
+      final url = await uploadPrescription(uid, bytes);
+      if (!mounted) return;
+      setState(() => _prescriptionUrl = url);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Medical report uploaded.'),
+            backgroundColor: FlutterFlowTheme.of(context).secondary,
+          ),
+        );
+    } catch (e) {
+      _showError('Could not upload report. Please try again.');
+    } finally {
+      if (mounted) setState(() => _uploadingPrescription = false);
+    }
+  }
+
   Future<void> _completeOnboarding({bool skip = false}) async {
     if (_saving) return;
 
@@ -105,6 +140,8 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
           if (age != null) 'age': age,
           if (!skip) 'conditions': _selectedConditions.toList(),
           if (!skip) 'symptoms': _selectedSymptoms.toList(),
+          if (!skip && _prescriptionUrl != null)
+            'prescriptionUrl': _prescriptionUrl,
           'onboardingComplete': true,
           'lastActiveAt': Timestamp.fromDate(DateTime.now()),
         },
@@ -591,7 +628,12 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                                   lineHeight: 1.4,
                                 ),
                           ),
-                          Container(
+                          InkWell(
+                            onTap: _uploadingPrescription
+                                ? null
+                                : _pickAndUploadPrescription,
+                            borderRadius: BorderRadius.circular(28.0),
+                            child: Container(
                             height: 160.0,
                             decoration: BoxDecoration(
                               color: FlutterFlowTheme.of(context)
@@ -599,7 +641,9 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                               borderRadius: BorderRadius.circular(28.0),
                               shape: BoxShape.rectangle,
                               border: Border.all(
-                                color: FlutterFlowTheme.of(context).alternate,
+                                color: _prescriptionUrl != null
+                                    ? FlutterFlowTheme.of(context).success
+                                    : FlutterFlowTheme.of(context).alternate,
                                 width: 2.0,
                               ),
                             ),
@@ -619,15 +663,37 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                                     shape: BoxShape.rectangle,
                                   ),
                                   alignment: AlignmentDirectional(0.0, 0.0),
-                                  child: Icon(
-                                    Icons.cloud_upload_rounded,
-                                    color:
-                                        FlutterFlowTheme.of(context).onSurface,
-                                    size: 28.0,
-                                  ),
+                                  child: _uploadingPrescription
+                                      ? SizedBox(
+                                          width: 24.0,
+                                          height: 24.0,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              FlutterFlowTheme.of(context)
+                                                  .primary,
+                                            ),
+                                          ),
+                                        )
+                                      : Icon(
+                                          _prescriptionUrl != null
+                                              ? Icons.check_circle_rounded
+                                              : Icons.cloud_upload_rounded,
+                                          color: _prescriptionUrl != null
+                                              ? FlutterFlowTheme.of(context)
+                                                  .success
+                                              : FlutterFlowTheme.of(context)
+                                                  .onSurface,
+                                          size: 28.0,
+                                        ),
                                 ),
                                 Text(
-                                  'Tap to upload medical reports',
+                                  _uploadingPrescription
+                                      ? 'Uploading report…'
+                                      : _prescriptionUrl != null
+                                          ? 'Report uploaded — tap to replace'
+                                          : 'Tap to upload medical reports',
                                   style: FlutterFlowTheme.of(context)
                                       .labelLarge
                                       .override(
@@ -682,6 +748,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                                 ),
                               ].divide(SizedBox(height: 8.0)),
                             ),
+                          ),
                           ),
                         ].divide(SizedBox(height: 16.0)),
                       ),

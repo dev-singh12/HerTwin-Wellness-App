@@ -54,6 +54,18 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
       );
   }
 
+  void _showInfo(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: FlutterFlowTheme.of(context).secondary,
+        ),
+      );
+  }
+
   Future<void> _handleGoogleSignIn() async {
     if (_googleLoading) return;
     setState(() => _googleLoading = true);
@@ -319,7 +331,10 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
+                              InkWell(
+                                onTap: () => _showInfo(
+                                    'Terms of Service will be available soon.'),
+                                child: Text(
                                 'Terms of Service',
                                 style: FlutterFlowTheme.of(context)
                                     .labelSmall
@@ -344,6 +359,7 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                                       decoration: TextDecoration.underline,
                                       lineHeight: 1.2,
                                     ),
+                                ),
                               ),
                               Text(
                                 '•',
@@ -370,7 +386,10 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                                       lineHeight: 1.2,
                                     ),
                               ),
-                              Text(
+                              InkWell(
+                                onTap: () => _showInfo(
+                                    'Privacy Policy will be available soon.'),
+                                child: Text(
                                 'Privacy Policy',
                                 style: FlutterFlowTheme.of(context)
                                     .labelSmall
@@ -395,6 +414,7 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                                       decoration: TextDecoration.underline,
                                       lineHeight: 1.2,
                                     ),
+                                ),
                               ),
                             ].divide(SizedBox(width: 8.0)),
                           ),
