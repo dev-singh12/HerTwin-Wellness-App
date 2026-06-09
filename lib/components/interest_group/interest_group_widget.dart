@@ -13,16 +13,19 @@ class InterestGroupWidget extends StatefulWidget {
     Color? icon_color,
     String? members,
     String? title,
+    bool? joined,
   })  : this.bg = bg ?? const Color(0xFFFCE4EC),
         this.icon_color = icon_color ?? const Color(0xFFF06292),
         this.members = members ?? '1.2k',
-        this.title = title ?? 'PCOS Warriors';
+        this.title = title ?? 'PCOS Warriors',
+        this.joined = joined ?? false;
 
   final Color bg;
   final Widget? icon;
   final Color icon_color;
   final String members;
   final String title;
+  final bool joined;
 
   @override
   State<InterestGroupWidget> createState() => _InterestGroupWidgetState();
@@ -62,8 +65,10 @@ class _InterestGroupWidgetState extends State<InterestGroupWidget> {
             borderRadius: BorderRadius.circular(28.0),
             shape: BoxShape.rectangle,
             border: Border.all(
-              color: FlutterFlowTheme.of(context).alternate,
-              width: 1.0,
+              color: widget.joined
+                  ? FlutterFlowTheme.of(context).primary
+                  : FlutterFlowTheme.of(context).alternate,
+              width: widget.joined ? 2.0 : 1.0,
             ),
           ),
           child: Padding(
@@ -135,6 +140,41 @@ class _InterestGroupWidgetState extends State<InterestGroupWidget> {
                               FlutterFlowTheme.of(context).labelSmall.fontStyle,
                           lineHeight: 1.2,
                         ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: widget.joined
+                          ? FlutterFlowTheme.of(context).primary
+                          : FlutterFlowTheme.of(context).primaryBackground,
+                      borderRadius: BorderRadius.circular(18.0),
+                      border: Border.all(
+                        color: widget.joined
+                            ? FlutterFlowTheme.of(context).primary
+                            : FlutterFlowTheme.of(context).alternate,
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsetsDirectional.fromSTEB(
+                          12.0, 6.0, 12.0, 6.0),
+                      child: Text(
+                        widget.joined ? 'Joined' : 'Join',
+                        style: FlutterFlowTheme.of(context).labelSmall.override(
+                              font: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w600,
+                                fontStyle: FlutterFlowTheme.of(context)
+                                    .labelSmall
+                                    .fontStyle,
+                              ),
+                              color: widget.joined
+                                  ? FlutterFlowTheme.of(context).onPrimary
+                                  : FlutterFlowTheme.of(context).primary,
+                              letterSpacing: 0.0,
+                              fontWeight: FontWeight.w600,
+                              lineHeight: 1.2,
+                            ),
+                      ),
+                    ),
                   ),
                 ].divide(SizedBox(height: 8.0)),
               ),

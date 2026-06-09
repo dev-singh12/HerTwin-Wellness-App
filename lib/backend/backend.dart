@@ -12,6 +12,8 @@ import 'schema/water_record.dart';
 import 'schema/exercises_record.dart';
 import 'schema/journals_record.dart';
 import 'schema/goals_record.dart';
+import 'schema/posts_record.dart';
+import 'schema/comments_record.dart';
 
 export 'schema/users_record.dart';
 export 'schema/cycles_record.dart';
@@ -22,6 +24,8 @@ export 'schema/water_record.dart';
 export 'schema/exercises_record.dart';
 export 'schema/journals_record.dart';
 export 'schema/goals_record.dart';
+export 'schema/posts_record.dart';
+export 'schema/comments_record.dart';
 
 FirebaseFirestore get _db => FirebaseFirestore.instance;
 
@@ -314,3 +318,135 @@ Future<void> updateGoal(String uid, String id, Map<String, dynamic> data) =>
     goalRef(uid, id).update(data);
 
 Future<void> deleteGoal(String uid, String id) => goalRef(uid, id).delete();
+
+// ---------------------------------------------------------------------------
+// Community — top-level `posts` (cross-user)
+//   posts/{postId}
+//   posts/{postId}/likes/{uid}
+//   posts/{postId}/comments/{commentId}
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> get postsCollection =>
+    _db.collection('posts');
+
+DocumentReference<Map<String, dynamic>> postRef(String id) =>
+    postsCollection.doc(id);
+
+String newPostId() => postsCollection.doc().id;
+
+Stream<List<PostsRecord>> streamPosts({int limit = 50}) => postsCollection
+    .orderBy('createdAt', descending: true)
+    .limit(limit)
+    .snapshots()
+    .map((s) => s.docs.map(PostsRecord.fromSnapshot).toList());
+
+Future<void> createPost(PostsRecord record) =>
+    postRef(record.id).set(record.toMap());
+
+Future<void> deletePost(String id) => postRef(id).delete();
+
+// --- likes ---------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> postLikesCollection(String postId) =>
+    postRef(postId).collection('likes');
+
+DocumentReference<Map<String, dynamic>> postLikeRef(
+        String postId, String uid) =>
+    postLikesCollection(postId).doc(uid);
+
+/// Whether [uid] has liked [postId] (live).
+Stream<bool> streamPostLiked(String postId, String uid) =>
+    postLikeRef(postId, uid).snapshots().map((s) => s.exists);
+
+/// Toggles a like for [uid] on [postId] and keeps `likeCount` in sync.
+/// Returns the new liked state (true = now liked).
+Future<bool> togglePostLike(String postId, String uid) {
+  final postDoc = postRef(postId);
+  final likeDoc = postLikeRef(postId, uid);
+  return _db.runTransaction<bool>((txn) async {
+    final likeSnap = await txn.get(likeDoc);
+    final postSnap = await txn.get(postDoc);
+    final current = (postSnap.data()?['likeCount'] as num?)?.toInt() ?? 0;
+    if (likeSnap.exists) {
+      txn.delete(likeDoc);
+      txn.update(postDoc, {'likeCount': current > 0 ? current - 1 : 0});
+      return false;
+    }
+    txn.set(likeDoc, {
+      'uid': uid,
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+    });
+    txn.update(postDoc, {'likeCount': current + 1});
+    return true;
+  });
+}
+
+/// Live set of post IDs that [uid] has liked (used by the "Saved" tab).
+/// Backed by a collection-group query on `likes` (see firestore.indexes.json).
+Stream<Set<String>> streamLikedPostIds(String uid) => _db
+    .collectionGroup('likes')
+    .where('uid', isEqualTo: uid)
+    .snapshots()
+    .map((s) => s.docs
+        .map((d) => d.reference.parent.parent?.id)
+        .whereType<String>()
+        .toSet());
+
+// --- comments ------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> postCommentsCollection(
+        String postId) =>
+    postRef(postId).collection('comments');
+
+Stream<List<CommentsRecord>> streamComments(String postId) =>
+    postCommentsCollection(postId)
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((s) => s.docs.map(CommentsRecord.fromSnapshot).toList());
+
+/// Adds [comment] to [postId] and increments `commentCount` atomically.
+Future<void> addComment(String postId, CommentsRecord comment) {
+  final postDoc = postRef(postId);
+  final commentDoc = postCommentsCollection(postId).doc();
+  return _db.runTransaction((txn) async {
+    final postSnap = await txn.get(postDoc);
+    final current = (postSnap.data()?['commentCount'] as num?)?.toInt() ?? 0;
+    txn.set(commentDoc, comment.copyWith(id: commentDoc.id).toMap());
+    txn.update(postDoc, {'commentCount': current + 1});
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Community — group membership
+//   groups/{groupId}/members/{uid}
+// Group metadata itself is a fixed in-app catalog (see community_groups.dart);
+// only membership is persisted, enabling real cross-user member counts.
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> groupMembersCollection(
+        String groupId) =>
+    _db.collection('groups').doc(groupId).collection('members');
+
+DocumentReference<Map<String, dynamic>> groupMemberRef(
+        String groupId, String uid) =>
+    groupMembersCollection(groupId).doc(uid);
+
+/// Whether [uid] is a member of [groupId] (live).
+Stream<bool> streamGroupJoined(String groupId, String uid) =>
+    groupMemberRef(groupId, uid).snapshots().map((s) => s.exists);
+
+/// Live member count for [groupId].
+Stream<int> streamGroupMemberCount(String groupId) =>
+    groupMembersCollection(groupId).snapshots().map((s) => s.size);
+
+/// Joins/leaves [groupId] for [uid]. Returns the new joined state.
+Future<bool> toggleGroupMembership(String groupId, String uid) async {
+  final ref = groupMemberRef(groupId, uid);
+  final snap = await ref.get();
+  if (snap.exists) {
+    await ref.delete();
+    return false;
+  }
+  await ref.set({'createdAt': Timestamp.fromDate(DateTime.now())});
+  return true;
+}

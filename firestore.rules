@@ -12,5 +12,53 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
     }
+
+    // ---------------------------------------------------------------------
+    // Community — cross-user posts, likes, comments.
+    // ---------------------------------------------------------------------
+    match /posts/{postId} {
+      // Anyone signed in can read the feed.
+      allow read: if request.auth != null;
+
+      // A post may only be created by its own author.
+      allow create: if request.auth != null
+        && request.resource.data.authorUid == request.auth.uid;
+
+      // The author may fully edit/delete their post; anyone signed in may
+      // change ONLY the denormalized counters (for like/comment actions).
+      allow update: if request.auth != null && (
+        resource.data.authorUid == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['likeCount', 'commentCount'])
+      );
+      allow delete: if request.auth != null
+        && resource.data.authorUid == request.auth.uid;
+
+      // Likes: one doc per user, keyed by uid. A user manages only their own.
+      match /likes/{likeUid} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == likeUid;
+      }
+
+      // Comments: anyone signed in can read; authors create/delete their own.
+      match /comments/{commentId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.authorUid == request.auth.uid;
+        allow delete: if request.auth != null
+          && resource.data.authorUid == request.auth.uid;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Community — group membership (group metadata is an in-app catalog).
+    // ---------------------------------------------------------------------
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+      match /members/{memberUid} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == memberUid;
+      }
+    }
   }
 }

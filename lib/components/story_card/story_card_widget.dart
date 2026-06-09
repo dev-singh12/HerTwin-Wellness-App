@@ -16,6 +16,11 @@ class StoryCardWidget extends StatefulWidget {
     String? likes,
     String? name,
     String? time,
+    bool? liked,
+    this.onLike,
+    this.onComment,
+    this.onShare,
+    this.onMore,
   })  : this.avatar_bg = avatar_bg ?? const Color(0xFFF3E5F5),
         this.category = category ?? 'PCOS',
         this.comments = comments ?? '18',
@@ -24,7 +29,8 @@ class StoryCardWidget extends StatefulWidget {
         this.initials = initials ?? 'MS',
         this.likes = likes ?? '124',
         this.name = name ?? 'Maya Sharma',
-        this.time = time ?? '2 hours ago';
+        this.time = time ?? '2 hours ago',
+        this.liked = liked ?? false;
 
   final Color avatar_bg;
   final String category;
@@ -34,6 +40,11 @@ class StoryCardWidget extends StatefulWidget {
   final String likes;
   final String name;
   final String time;
+  final bool liked;
+  final VoidCallback? onLike;
+  final VoidCallback? onComment;
+  final VoidCallback? onShare;
+  final VoidCallback? onMore;
 
   @override
   State<StoryCardWidget> createState() => _StoryCardWidgetState();
@@ -189,10 +200,13 @@ class _StoryCardWidgetState extends State<StoryCardWidget> {
                           ],
                         ),
                       ),
-                      Icon(
-                        Icons.more_horiz_rounded,
-                        color: FlutterFlowTheme.of(context).accent3,
-                        size: 24.0,
+                      InkWell(
+                        onTap: widget.onMore,
+                        child: Icon(
+                          Icons.more_horiz_rounded,
+                          color: FlutterFlowTheme.of(context).accent3,
+                          size: 24.0,
+                        ),
                       ),
                     ].divide(SizedBox(width: 16.0)),
                   ),
@@ -293,14 +307,20 @@ class _StoryCardWidgetState extends State<StoryCardWidget> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Row(
+                      InkWell(
+                        onTap: widget.onLike,
+                        child: Row(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.favorite_border_rounded,
-                            color: FlutterFlowTheme.of(context).secondaryText,
+                            widget.liked
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            color: widget.liked
+                                ? FlutterFlowTheme.of(context).primary
+                                : FlutterFlowTheme.of(context).secondaryText,
                             size: 20.0,
                           ),
                           Text(
@@ -333,7 +353,10 @@ class _StoryCardWidgetState extends State<StoryCardWidget> {
                           ),
                         ].divide(SizedBox(width: 4.0)),
                       ),
-                      Row(
+                      ),
+                      InkWell(
+                        onTap: widget.onComment,
+                        child: Row(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -373,10 +396,14 @@ class _StoryCardWidgetState extends State<StoryCardWidget> {
                           ),
                         ].divide(SizedBox(width: 4.0)),
                       ),
-                      Icon(
-                        Icons.ios_share_rounded,
-                        color: FlutterFlowTheme.of(context).secondaryText,
-                        size: 20.0,
+                      ),
+                      InkWell(
+                        onTap: widget.onShare,
+                        child: Icon(
+                          Icons.ios_share_rounded,
+                          color: FlutterFlowTheme.of(context).secondaryText,
+                          size: 20.0,
+                        ),
                       ),
                     ],
                   ),
