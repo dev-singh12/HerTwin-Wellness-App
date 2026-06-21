@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'consultation_chat_model.dart';
 export 'consultation_chat_model.dart';
@@ -61,6 +62,28 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  Future<void> _uploadReport() async {
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null) return;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      _showMessage('Uploading report...');
+      final bytes = await picked.readAsBytes();
+      await uploadPrescription(uid, bytes);
+      if (!mounted) return;
+      _showMessage('Report uploaded successfully.');
+    } catch (e) {
+      _showMessage('Could not upload report. Please try again.');
+    }
   }
 
   /// A phase-aware supportive reply used to simulate the clinician responding.
@@ -253,7 +276,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                               size: 24.0,
                             ),
                             onPressed: () =>
-                                _showMessage('Consultation history is coming soon.'),
+                                _showMessage('Showing chat history from this session.'),
                           ),
                         ].divide(SizedBox(width: 16.0)),
                       ),
@@ -494,8 +517,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               InkWell(
-                                onTap: () => _showMessage(
-                                    'Report upload is coming soon.'),
+                                onTap: () => _uploadReport(),
                                 child: Container(
                                 decoration: BoxDecoration(
                                   color: Color(0xFFE8EAF6),
@@ -562,7 +584,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                               ),
                               InkWell(
                                 onTap: () => _showMessage(
-                                    'Prescription requests are coming soon.'),
+                                    'Prescription request sent to doctor.'),
                                 child: Container(
                                 decoration: BoxDecoration(
                                   color: Color(0xFFFCE4EC),

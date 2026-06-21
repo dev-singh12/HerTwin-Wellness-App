@@ -1,5 +1,14 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "appointments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": [
     {
       "collectionGroup": "likes",

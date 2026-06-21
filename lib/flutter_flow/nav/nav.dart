@@ -111,7 +111,50 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           name: InsightsWidget.routeName,
           path: InsightsWidget.routePath,
           builder: (context, params) => InsightsWidget(),
-        )
+        ),
+        FFRoute(
+          name: DoctorSelectionWidget.routeName,
+          path: DoctorSelectionWidget.routePath,
+          builder: (context, params) => DoctorSelectionWidget(
+            appointmentType: params.getParam('appointmentType', ParamType.String),
+          ),
+        ),
+        FFRoute(
+          name: AppointmentConfirmationWidget.routeName,
+          path: AppointmentConfirmationWidget.routePath,
+          builder: (context, params) => AppointmentConfirmationWidget(
+            appointmentId: params.getParam('appointmentId', ParamType.String),
+          ),
+        ),
+        FFRoute(
+          name: ReminderManagementWidget.routeName,
+          path: ReminderManagementWidget.routePath,
+          builder: (context, params) => ReminderManagementWidget(),
+        ),
+        FFRoute(
+          name: YogaDetailWidget.routeName,
+          path: YogaDetailWidget.routePath,
+          builder: (context, params) => YogaDetailWidget(
+            contentId: params.getParam('contentId', ParamType.String) as String?,
+          ),
+        ),
+        FFRoute(
+          name: ArticleDetailWidget.routeName,
+          path: ArticleDetailWidget.routePath,
+          builder: (context, params) => ArticleDetailWidget(
+            articleId: params.getParam('articleId', ParamType.String),
+          ),
+        ),
+        FFRoute(
+          name: BreathworkGuideWidget.routeName,
+          path: BreathworkGuideWidget.routePath,
+          builder: (context, params) => BreathworkGuideWidget(),
+        ),
+        FFRoute(
+          name: MoodJournalWidget.routeName,
+          path: MoodJournalWidget.routePath,
+          builder: (context, params) => MoodJournalWidget(),
+        ),
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );
 

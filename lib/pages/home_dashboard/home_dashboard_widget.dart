@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
+import '/backend/seed_data.dart';
 import '/business/cycle_engine.dart';
 import '/components/button/button_widget.dart';
 import '/components/calendar_pill/calendar_pill_widget.dart';
@@ -65,6 +66,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
 
     final uid = AuthManager.instance.currentUid;
     if (uid != null) {
+      seedDoctorsIfNeeded().catchError((_) {});
       _userSub = streamUser(uid).listen((u) {
         if (mounted) safeSetState(() => _user = u);
       });
@@ -136,12 +138,6 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
       safeSetState(() => _ritualsDone.contains(index)
           ? _ritualsDone.remove(index)
           : _ritualsDone.add(index));
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -738,8 +734,8 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                           ),
                                     ),
                                     InkWell(
-                                      onTap: () => _showMessage(
-                                          'Ritual editing is coming soon.'),
+                                      onTap: () => context.pushNamed(
+                                          ReminderManagementWidget.routeName),
                                       child: wrapWithModel(
                                       model: _model.buttonModel,
                                       updateCallback: () => safeSetState(() {}),
@@ -877,7 +873,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         children: [
                                           InkWell(
                                             onTap: () => context.pushNamed(
-                                                WellnessTabWidget.routeName),
+                                                YogaDetailWidget.routeName),
                                             child: Container(
                                             height: 160.0,
                                             decoration: BoxDecoration(
@@ -1038,7 +1034,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         children: [
                                           InkWell(
                                             onTap: () => context.pushNamed(
-                                                WellnessTabWidget.routeName),
+                                                MoodJournalWidget.routeName),
                                             child: Container(
                                             height: 100.0,
                                             decoration: BoxDecoration(

@@ -41,7 +41,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = FlutterFlowTheme.themeMode;
+  ThemeMode _themeMode = ThemeMode.light;
 
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;

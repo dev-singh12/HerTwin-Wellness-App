@@ -14,6 +14,13 @@ import 'schema/journals_record.dart';
 import 'schema/goals_record.dart';
 import 'schema/posts_record.dart';
 import 'schema/comments_record.dart';
+import 'schema/onboarding_assessment_record.dart';
+import 'schema/doctor_record.dart';
+import 'schema/appointment_record.dart';
+import 'schema/medicine_reminder_record.dart';
+import 'schema/reminder_log_record.dart';
+import 'schema/health_habit_record.dart';
+import 'schema/habit_log_record.dart';
 
 export 'schema/users_record.dart';
 export 'schema/cycles_record.dart';
@@ -26,6 +33,13 @@ export 'schema/journals_record.dart';
 export 'schema/goals_record.dart';
 export 'schema/posts_record.dart';
 export 'schema/comments_record.dart';
+export 'schema/onboarding_assessment_record.dart';
+export 'schema/doctor_record.dart';
+export 'schema/appointment_record.dart';
+export 'schema/medicine_reminder_record.dart';
+export 'schema/reminder_log_record.dart';
+export 'schema/health_habit_record.dart';
+export 'schema/habit_log_record.dart';
 
 FirebaseFirestore get _db => FirebaseFirestore.instance;
 
@@ -449,4 +463,307 @@ Future<bool> toggleGroupMembership(String groupId, String uid) async {
   }
   await ref.set({'createdAt': Timestamp.fromDate(DateTime.now())});
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// users/{uid}/assessments
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> assessmentsCollection(String uid) =>
+    userRef(uid).collection('assessments');
+
+String newAssessmentId(String uid) => assessmentsCollection(uid).doc().id;
+
+Stream<OnboardingAssessmentRecord?> streamLatestAssessment(String uid) =>
+    assessmentsCollection(uid)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .map((s) => s.docs.isEmpty
+            ? null
+            : OnboardingAssessmentRecord.fromSnapshot(s.docs.first));
+
+Future<void> saveAssessment(
+    String uid, OnboardingAssessmentRecord record) =>
+    assessmentsCollection(uid).doc(record.id).set(record.toMap());
+
+// ---------------------------------------------------------------------------
+// doctors (top-level, admin-seeded)
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> get doctorsCollection =>
+    _db.collection('doctors');
+
+Stream<List<DoctorRecord>> streamAvailableDoctors(
+        {List<String>? conditions}) =>
+    doctorsCollection.snapshots().map((s) {
+      var docs = s.docs.map(DoctorRecord.fromSnapshot).toList();
+      if (conditions != null && conditions.isNotEmpty) {
+        docs = docs
+            .where((d) =>
+                d.conditionsTreated.any((c) => conditions.contains(c)))
+            .toList();
+      }
+      return docs;
+    });
+
+Stream<DoctorRecord> streamDoctorById(String doctorId) =>
+    doctorsCollection.doc(doctorId).snapshots().map(DoctorRecord.fromSnapshot);
+
+Future<List<String>> getDoctorSlots(String doctorId, String date) async {
+  final snap = await doctorsCollection.doc(doctorId).get();
+  if (!snap.exists) return [];
+  final doc = DoctorRecord.fromSnapshot(snap);
+  return doc.availableSlots[date] ?? _generateDefaultSlots();
+}
+
+List<String> _generateDefaultSlots() {
+  return [
+    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// users/{uid}/appointments
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> appointmentsCollection(String uid) =>
+    userRef(uid).collection('appointments');
+
+String newAppointmentId(String uid) => appointmentsCollection(uid).doc().id;
+
+Stream<List<AppointmentRecord>> streamAppointments(String uid) =>
+    appointmentsCollection(uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(AppointmentRecord.fromSnapshot).toList());
+
+Future<void> bookAppointment(String uid, AppointmentRecord record) =>
+    appointmentsCollection(uid).doc(record.id).set(record.toMap());
+
+Future<void> updateAppointmentStatus(
+        String uid, String appointmentId, String status) =>
+    appointmentsCollection(uid).doc(appointmentId).update({'status': status});
+
+Stream<AppointmentRecord?> streamNextAppointment(String uid) =>
+    appointmentsCollection(uid)
+        .where('status', whereIn: ['booked', 'ongoing'])
+        .orderBy('scheduledAt')
+        .limit(1)
+        .snapshots()
+        .map((s) => s.docs.isEmpty
+            ? null
+            : AppointmentRecord.fromSnapshot(s.docs.first));
+
+// ---------------------------------------------------------------------------
+// users/{uid}/reminders
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> remindersCollection(String uid) =>
+    userRef(uid).collection('reminders');
+
+String newReminderId(String uid) => remindersCollection(uid).doc().id;
+
+Stream<List<MedicineReminderRecord>> streamReminders(String uid) =>
+    remindersCollection(uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+            (s) => s.docs.map(MedicineReminderRecord.fromSnapshot).toList());
+
+Future<void> createReminder(String uid, MedicineReminderRecord record) =>
+    remindersCollection(uid).doc(record.id).set(record.toMap());
+
+Future<void> updateReminder(
+        String uid, String reminderId, Map<String, dynamic> data) =>
+    remindersCollection(uid).doc(reminderId).update(data);
+
+Future<void> deleteReminder(String uid, String reminderId) =>
+    remindersCollection(uid).doc(reminderId).delete();
+
+// ---------------------------------------------------------------------------
+// users/{uid}/reminder_logs
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> reminderLogsCollection(String uid) =>
+    userRef(uid).collection('reminder_logs');
+
+Stream<List<ReminderLogRecord>> streamReminderLogs(
+        String uid, String date) =>
+    reminderLogsCollection(uid)
+        .where('date', isEqualTo: date)
+        .snapshots()
+        .map((s) => s.docs.map(ReminderLogRecord.fromSnapshot).toList());
+
+Future<void> updateReminderLog(
+    String uid, String reminderId, String date, String time, bool checked) {
+  final docId = '${date}_$reminderId';
+  return reminderLogsCollection(uid).doc(docId).set({
+    'uid': uid,
+    'reminderId': reminderId,
+    'date': date,
+    'timesChecked': {time: checked},
+    'updatedAt': Timestamp.fromDate(DateTime.now()),
+  }, SetOptions(merge: true));
+}
+
+// ---------------------------------------------------------------------------
+// users/{uid}/habits
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> habitsCollection(String uid) =>
+    userRef(uid).collection('habits');
+
+String newHabitId(String uid) => habitsCollection(uid).doc().id;
+
+Stream<List<HealthHabitRecord>> streamHabits(String uid) =>
+    habitsCollection(uid)
+        .where('isActive', isEqualTo: true)
+        .snapshots()
+        .map((s) => s.docs.map(HealthHabitRecord.fromSnapshot).toList());
+
+Future<void> createHabit(String uid, HealthHabitRecord record) =>
+    habitsCollection(uid).doc(record.id).set(record.toMap());
+
+Future<void> updateHabitRecord(
+        String uid, String habitId, Map<String, dynamic> data) =>
+    habitsCollection(uid).doc(habitId).update(data);
+
+Future<void> deleteHabit(String uid, String habitId) =>
+    habitsCollection(uid).doc(habitId).delete();
+
+// ---------------------------------------------------------------------------
+// users/{uid}/habit_logs
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> habitLogsCollection(String uid) =>
+    userRef(uid).collection('habit_logs');
+
+Stream<HabitLogRecord?> streamHabitLog(String uid, String date) =>
+    habitLogsCollection(uid)
+        .doc(date)
+        .snapshots()
+        .map((s) =>
+            s.exists ? HabitLogRecord.fromSnapshot(s) : null);
+
+Future<void> toggleHabit(
+    String uid, String date, String habitId, bool completed) =>
+    habitLogsCollection(uid).doc(date).set({
+      'uid': uid,
+      'date': date,
+      'completedHabits': {habitId: completed},
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    }, SetOptions(merge: true));
+
+// ---------------------------------------------------------------------------
+// users/{uid}/feedback
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> feedbackCollection(String uid) =>
+    userRef(uid).collection('feedback');
+
+Future<void> saveFeedback(
+        String uid, int rating, String comment) =>
+    feedbackCollection(uid).doc().set({
+      'uid': uid,
+      'rating': rating,
+      'comment': comment,
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+    });
+
+// ---------------------------------------------------------------------------
+// users/{uid}/score_logs
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> scoreLogsCollection(String uid) =>
+    userRef(uid).collection('score_logs');
+
+Future<void> saveScoreLog(String uid, String date, int score) =>
+    scoreLogsCollection(uid).doc(date).set({
+      'date': date,
+      'score': score,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    }, SetOptions(merge: true));
+
+Stream<List<Map<String, dynamic>>> streamScoreLogs(
+        String uid, int days) =>
+    scoreLogsCollection(uid)
+        .orderBy('date', descending: true)
+        .limit(days)
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => d.data())
+            .toList());
+
+// ---------------------------------------------------------------------------
+// meta (seeding guard)
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> get metaCollection =>
+    _db.collection('meta');
+
+// ---------------------------------------------------------------------------
+// Habit seeding helpers
+// ---------------------------------------------------------------------------
+
+Future<void> saveHabitsForCondition(
+    String uid, String conditionType, String severity) async {
+  final habits = _habitsForCondition(conditionType, severity);
+  final batch = _db.batch();
+  final ids = <String>[];
+  for (final h in habits) {
+    final id = newHabitId(uid);
+    ids.add(id);
+    batch.set(habitsCollection(uid).doc(id), h.copyWith(
+      id: id,
+      uid: uid,
+      conditionTag: conditionType,
+      createdAt: DateTime.now(),
+    ).toMap());
+  }
+  batch.update(userRef(uid), {'activeHabitIds': ids});
+  await batch.commit();
+}
+
+List<HealthHabitRecord> _habitsForCondition(
+    String conditionType, String severity) {
+  switch (conditionType) {
+    case 'pcos':
+    case 'pcod':
+      if (severity == 'severe' || severity == 'moderate') {
+        return const [
+          HealthHabitRecord(title: 'Drink 8 glasses of water', category: 'nutrition', icon: '\u{1F4A7}', isSystemGenerated: true, targetDays: 7),
+          HealthHabitRecord(title: 'Eat a low-glycemic meal', category: 'nutrition', icon: '\u{1F957}', isSystemGenerated: true, targetDays: 7),
+          HealthHabitRecord(title: '30 min low-impact exercise', category: 'exercise', icon: '\u{1F3C3}', isSystemGenerated: true, targetDays: 5),
+          HealthHabitRecord(title: 'Sleep by 10:30 PM', category: 'sleep', icon: '\u{1F634}', isSystemGenerated: true, targetDays: 7),
+          HealthHabitRecord(title: 'Take prescribed supplements', category: 'medication', icon: '\u{1F48A}', isSystemGenerated: true, targetDays: 7),
+          HealthHabitRecord(title: 'Write in mood journal', category: 'mindfulness', icon: '\u{1F4D4}', isSystemGenerated: true, targetDays: 7),
+        ];
+      }
+      return const [
+        HealthHabitRecord(title: 'Balanced meal with protein', category: 'nutrition', icon: '\u{1F957}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: '30 min walk', category: 'exercise', icon: '\u{1F6B6}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: '8 glasses of water', category: 'nutrition', icon: '\u{1F4A7}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: 'Sleep 7-9 hours', category: 'sleep', icon: '\u{1F634}', isSystemGenerated: true, targetDays: 7),
+      ];
+    case 'pms':
+    case 'pmdd':
+      return const [
+        HealthHabitRecord(title: 'Take magnesium supplement', category: 'medication', icon: '\u{1F33F}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: '10 min breathwork or meditation', category: 'mindfulness', icon: '\u{1F9D8}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: 'Limit caffeine today', category: 'nutrition', icon: '\u{2615}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: '20 min gentle walk', category: 'exercise', icon: '\u{1F6B6}', isSystemGenerated: true, targetDays: 5),
+        HealthHabitRecord(title: 'Drink 8 glasses of water', category: 'nutrition', icon: '\u{1F4A7}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: 'Track mood in journal', category: 'mindfulness', icon: '\u{1F4D4}', isSystemGenerated: true, targetDays: 7),
+      ];
+    case 'irregular':
+    default:
+      return const [
+        HealthHabitRecord(title: 'Balanced meal with protein', category: 'nutrition', icon: '\u{1F957}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: '30 min walk', category: 'exercise', icon: '\u{1F6B6}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: '8 glasses of water', category: 'nutrition', icon: '\u{1F4A7}', isSystemGenerated: true, targetDays: 7),
+        HealthHabitRecord(title: 'Sleep 7-9 hours', category: 'sleep', icon: '\u{1F634}', isSystemGenerated: true, targetDays: 7),
+      ];
+  }
 }

@@ -362,8 +362,8 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                   ),
                             ),
                             InkWell(
-                              onTap: () => _showMessage(
-                                  'The full practice library is coming soon.'),
+                              onTap: () => context.pushNamed(
+                                  YogaDetailWidget.routeName),
                               child: Text(
                               'See All',
                               style: FlutterFlowTheme.of(context)
@@ -393,8 +393,9 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                           ],
                         ),
                         InkWell(
-                          onTap: () => _showMessage(
-                              '"${_recommendation.title}" will be available soon.'),
+                          onTap: () => context.pushNamed(
+                              YogaDetailWidget.routeName,
+                              extra: {'contentId': null}),
                           child: wrapWithModel(
                           model: _model.wellnessCardModel1,
                           updateCallback: () => safeSetState(() {}),
@@ -436,7 +437,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                             Expanded(
                               flex: 1,
                               child: InkWell(
-                                onTap: _openLogSymptoms,
+                                onTap: () => context.pushNamed(MoodJournalWidget.routeName),
                                 child: Container(
                                 height: 120.0,
                                 decoration: BoxDecoration(
@@ -506,8 +507,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                             Expanded(
                               flex: 1,
                               child: InkWell(
-                                onTap: () => _showMessage(
-                                    'Guided breathwork is coming soon.'),
+                                onTap: () => context.pushNamed(BreathworkGuideWidget.routeName),
                                 child: Container(
                                 height: 120.0,
                                 decoration: BoxDecoration(
@@ -598,8 +598,9 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                                   ),
                         ),
                         InkWell(
-                          onTap: () => _showMessage(
-                              '"Understanding PCOS" article is coming soon.'),
+                          onTap: () => context.pushNamed(
+                              ArticleDetailWidget.routeName,
+                              extra: {'articleId': 'art_pcos_diet'}),
                           child: wrapWithModel(
                           model: _model.wellnessCardModel2,
                           updateCallback: () => safeSetState(() {}),
@@ -615,8 +616,9 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                         ),
                         ),
                         InkWell(
-                          onTap: () => _showMessage(
-                              '"Nutrition for PMS" article is coming soon.'),
+                          onTap: () => context.pushNamed(
+                              ArticleDetailWidget.routeName,
+                              extra: {'articleId': 'art_pms_nutrition'}),
                           child: wrapWithModel(
                           model: _model.wellnessCardModel3,
                           updateCallback: () => safeSetState(() {}),

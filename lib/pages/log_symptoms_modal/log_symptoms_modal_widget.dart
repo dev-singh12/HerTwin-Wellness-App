@@ -10,6 +10,7 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'log_symptoms_modal_model.dart';
 export 'log_symptoms_modal_model.dart';
 
@@ -773,8 +774,22 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                               ].divide(SizedBox(height: 16.0)),
                             ),
                             InkWell(
-                              onTap: () => _showMessage(
-                                  'Report upload is coming soon.'),
+                              onTap: () async {
+                                final uid = AuthManager.instance.currentUid;
+                                if (uid == null) return;
+                                try {
+                                  final picker = ImagePicker();
+                                  final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
+                                  if (picked == null) return;
+                                  _showMessage('Uploading report...');
+                                  final bytes = await picked.readAsBytes();
+                                  await uploadPrescription(uid, bytes);
+                                  if (!mounted) return;
+                                  _showMessage('Report uploaded successfully.');
+                                } catch (_) {
+                                  _showMessage('Upload failed. Try again.');
+                                }
+                              },
                               child: Container(
                               decoration: BoxDecoration(
                                 color: FlutterFlowTheme.of(context)

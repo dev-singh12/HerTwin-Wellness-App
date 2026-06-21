@@ -10,6 +10,10 @@ class CyclesRecord {
     this.symptoms = const <String>[],
     this.notes = '',
     this.createdAt,
+    this.flowIntensity = '',
+    this.mood = '',
+    this.isPeriodDay = false,
+    this.phase = '',
   });
 
   final String id;
@@ -22,6 +26,10 @@ class CyclesRecord {
   final List<String> symptoms;
   final String notes;
   final DateTime? createdAt;
+  final String flowIntensity;
+  final String mood;
+  final bool isPeriodDay;
+  final String phase;
 
   factory CyclesRecord.fromMap(Map<String, dynamic> data, String id) =>
       CyclesRecord(
@@ -34,6 +42,10 @@ class CyclesRecord {
             const <String>[],
         notes: (data['notes'] as String?) ?? '',
         createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+        flowIntensity: (data['flowIntensity'] as String?) ?? '',
+        mood: (data['mood'] as String?) ?? '',
+        isPeriodDay: (data['isPeriodDay'] as bool?) ?? false,
+        phase: (data['phase'] as String?) ?? '',
       );
 
   factory CyclesRecord.fromSnapshot(DocumentSnapshot snapshot) =>
@@ -51,6 +63,10 @@ class CyclesRecord {
         'symptoms': symptoms,
         'notes': notes,
         'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
+        'flowIntensity': flowIntensity,
+        'mood': mood,
+        'isPeriodDay': isPeriodDay,
+        'phase': phase,
       };
 
   CyclesRecord copyWith({
@@ -62,6 +78,10 @@ class CyclesRecord {
     List<String>? symptoms,
     String? notes,
     DateTime? createdAt,
+    String? flowIntensity,
+    String? mood,
+    bool? isPeriodDay,
+    String? phase,
   }) =>
       CyclesRecord(
         id: id ?? this.id,
@@ -72,5 +92,9 @@ class CyclesRecord {
         symptoms: symptoms ?? this.symptoms,
         notes: notes ?? this.notes,
         createdAt: createdAt ?? this.createdAt,
+        flowIntensity: flowIntensity ?? this.flowIntensity,
+        mood: mood ?? this.mood,
+        isPeriodDay: isPeriodDay ?? this.isPeriodDay,
+        phase: phase ?? this.phase,
       );
 }

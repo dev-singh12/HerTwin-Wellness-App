@@ -193,13 +193,14 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
     String category = _categories.first;
     bool posting = false;
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setSheet) {
+          builder: (_, setSheet) {
             Future<void> submit() async {
               final text = controller.text.trim();
               if (text.isEmpty) {
@@ -364,7 +365,9 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
         );
       },
     );
-    controller.dispose();
+    } finally {
+      controller.dispose();
+    }
   }
 
   // --- Comments ------------------------------------------------------------

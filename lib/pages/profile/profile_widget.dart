@@ -360,7 +360,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                     iconColor: theme.primaryText,
                     title: 'Notifications',
                     subtitle: 'Reminders and cycle alerts',
-                    onTap: () => _showMessage('Notification settings coming soon.'),
+                    onTap: () => context.pushNamed(ReminderManagementWidget.routeName),
                   ),
                   const SizedBox(height: 32.0),
 

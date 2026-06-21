@@ -1,5 +1,6 @@
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
+import '/business/scoring_engine.dart';
 import '/components/button/button_widget.dart';
 import '/components/condition_chip/condition_chip_widget.dart';
 import '/components/step_indicator/step_indicator_widget.dart';
@@ -135,6 +136,43 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
 
     setState(() => _saving = true);
     try {
+      // Determine primary condition from selections
+      final condition = _selectedConditions.isNotEmpty
+          ? _selectedConditions.first.toLowerCase().replaceAll(' ', '_')
+          : 'unknown';
+
+      // Compute a basic score from conditions/symptoms count
+      final result = ScoringEngine.compute(
+        conditionType: condition == 'irregular_periods' ? 'irregular' : condition,
+        answers: const {},
+        age: age ?? 25,
+      );
+
+      // Save assessment record
+      final assessmentId = newAssessmentId(uid);
+      await saveAssessment(
+        uid,
+        OnboardingAssessmentRecord(
+          id: assessmentId,
+          uid: uid,
+          conditionType: condition == 'irregular_periods' ? 'irregular' : condition,
+          answers: const {},
+          totalScore: result.totalScore,
+          severityLevel: result.severityLevel,
+          diagnosisLabel: result.diagnosisLabel,
+          carePlanType: result.carePlanType,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // Save habits for condition
+      await saveHabitsForCondition(
+        uid,
+        condition == 'irregular_periods' ? 'irregular' : condition,
+        result.severityLevel,
+      );
+
       await userRef(uid).set(
         {
           if (age != null) 'age': age,
@@ -142,6 +180,11 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
           if (!skip) 'symptoms': _selectedSymptoms.toList(),
           if (!skip && _prescriptionUrl != null)
             'prescriptionUrl': _prescriptionUrl,
+          'conditionType': condition == 'irregular_periods' ? 'irregular' : condition,
+          'latestAssessmentScore': result.totalScore,
+          'latestSeverityLabel': result.severityLevel,
+          'carePlanType': result.carePlanType,
+          'healthVitalityScore': result.healthScore,
           'onboardingComplete': true,
           'lastActiveAt': Timestamp.fromDate(DateTime.now()),
         },

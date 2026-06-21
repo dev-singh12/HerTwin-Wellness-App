@@ -16,3 +16,15 @@ export '/pages/community_feed/community_feed_widget.dart'
     show CommunityFeedWidget;
 export '/pages/profile/profile_widget.dart' show ProfileWidget;
 export '/pages/insights/insights_widget.dart' show InsightsWidget;
+export '/pages/doctor_selection/doctor_selection_widget.dart'
+    show DoctorSelectionWidget;
+export '/pages/appointment_confirmation/appointment_confirmation_widget.dart'
+    show AppointmentConfirmationWidget;
+export '/pages/reminder_management/reminder_management_widget.dart'
+    show ReminderManagementWidget;
+export '/pages/yoga_detail/yoga_detail_widget.dart' show YogaDetailWidget;
+export '/pages/article_detail/article_detail_widget.dart'
+    show ArticleDetailWidget;
+export '/pages/breathwork_guide/breathwork_guide_widget.dart'
+    show BreathworkGuideWidget;
+export '/pages/mood_journal/mood_journal_widget.dart' show MoodJournalWidget;
