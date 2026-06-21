@@ -309,6 +309,12 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 28.0),
 
+                  // Condition card
+                  if (_user != null && _user!.conditionType.isNotEmpty)
+                    _conditionCard(theme),
+                  if (_user != null && _user!.conditionType.isNotEmpty)
+                    const SizedBox(height: 16.0),
+
                   // Stat cards
                   Row(
                     children: [
@@ -362,6 +368,26 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                     subtitle: 'Reminders and cycle alerts',
                     onTap: () => context.pushNamed(ReminderManagementWidget.routeName),
                   ),
+                  const SizedBox(height: 12.0),
+                  _actionTile(
+                    theme,
+                    icon: Icons.assignment_rounded,
+                    iconBg: const Color(0xFFE8F5E9),
+                    iconColor: const Color(0xFF388E3C),
+                    title: 'Retake Assessment',
+                    subtitle: 'Update your condition & wellness score',
+                    onTap: () => context.pushNamed(OnboardingStepFormWidget.routeName),
+                  ),
+                  const SizedBox(height: 12.0),
+                  _actionTile(
+                    theme,
+                    icon: Icons.star_border_rounded,
+                    iconBg: const Color(0xFFFFF8E1),
+                    iconColor: const Color(0xFFF9A825),
+                    title: 'Rate HerTwin',
+                    subtitle: 'Share your feedback with us',
+                    onTap: () => _showRatingDialog(theme),
+                  ),
                   const SizedBox(height: 32.0),
 
                   // Sign out
@@ -409,6 +435,194 @@ class _ProfileWidgetState extends State<ProfileWidget> {
               letterSpacing: 0.0,
             )),
       );
+
+  // ── Condition card ──────────────────────────────────────────────────────
+
+  Widget _conditionCard(FlutterFlowTheme theme) {
+    final condition = _user!.conditionType.toUpperCase();
+    final score = _user!.latestAssessmentScore;
+    final severity = _user!.latestSeverityLabel;
+    final carePlan = _user!.carePlanType;
+    final scoreColor = score >= 70
+        ? theme.success
+        : score >= 40
+            ? theme.warning
+            : theme.error;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [theme.primary.withAlpha(15), theme.secondary.withAlpha(15)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.primary.withAlpha(40), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.primary.withAlpha(30),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(condition,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, fontWeight: FontWeight.w700, color: theme.primary)),
+              ),
+              const Spacer(),
+              if (severity.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: scoreColor.withAlpha(25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(severity,
+                      style: GoogleFonts.inter(
+                          fontSize: 12, fontWeight: FontWeight.w600, color: scoreColor)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Wellness Score',
+                      style: GoogleFonts.inter(fontSize: 12, color: theme.secondaryText)),
+                  const SizedBox(height: 2),
+                  Text('$score / 100',
+                      style: GoogleFonts.poppins(
+                          fontSize: 24, fontWeight: FontWeight.bold, color: scoreColor)),
+                ],
+              ),
+              const Spacer(),
+              SizedBox(
+                width: 56,
+                height: 56,
+                child: CircularProgressIndicator(
+                  value: score / 100.0,
+                  strokeWidth: 5,
+                  backgroundColor: theme.alternate,
+                  valueColor: AlwaysStoppedAnimation(scoreColor),
+                ),
+              ),
+            ],
+          ),
+          if (carePlan.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Care Plan: $carePlan',
+                style: GoogleFonts.inter(fontSize: 12, color: theme.secondaryText)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Rating dialog ──────────────────────────────────────────────────────
+
+  void _showRatingDialog(FlutterFlowTheme theme) {
+    int rating = 0;
+    final commentCtrl = TextEditingController();
+    bool submitting = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Rate HerTwin',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('How is your experience so far?',
+                  style: GoogleFonts.inter(fontSize: 14, color: theme.secondaryText)),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) {
+                  final starIndex = i + 1;
+                  return IconButton(
+                    icon: Icon(
+                      starIndex <= rating ? Icons.star_rounded : Icons.star_border_rounded,
+                      color: starIndex <= rating ? const Color(0xFFF9A825) : theme.secondaryText,
+                      size: 36,
+                    ),
+                    onPressed: () => setDialogState(() => rating = starIndex),
+                  );
+                }),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: commentCtrl,
+                maxLines: 3,
+                maxLength: 300,
+                decoration: InputDecoration(
+                  hintText: 'Any feedback? (optional)',
+                  hintStyle: GoogleFonts.inter(fontSize: 13, color: theme.secondaryText),
+                  filled: true,
+                  fillColor: theme.primaryBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.alternate),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.alternate),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.primary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: GoogleFonts.inter(color: theme.secondaryText)),
+            ),
+            ElevatedButton(
+              onPressed: rating == 0 || submitting
+                  ? null
+                  : () async {
+                      setDialogState(() => submitting = true);
+                      final uid = AuthManager.instance.currentUid;
+                      if (uid != null) {
+                        try {
+                          await saveFeedback(uid, rating, commentCtrl.text.trim());
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) _showMessage('Thank you for your feedback!');
+                        } catch (_) {
+                          if (mounted) _showMessage('Could not save feedback. Please try again.');
+                        }
+                      }
+                      if (ctx.mounted) setDialogState(() => submitting = false);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: submitting
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text('Submit', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _nameEditor(FlutterFlowTheme theme) => Row(
         children: [

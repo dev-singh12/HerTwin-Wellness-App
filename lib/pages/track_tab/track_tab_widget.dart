@@ -31,7 +31,11 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
   StreamSubscription<List<CyclesRecord>>? _cyclesSub;
+  StreamSubscription<List<HealthHabitRecord>>? _habitsSub;
+  StreamSubscription<HabitLogRecord?>? _habitLogSub;
   List<CyclesRecord> _cycles = const [];
+  List<HealthHabitRecord> _habits = const [];
+  HabitLogRecord? _todayHabitLog;
   CycleStatus _status = CycleEngine.compute(const []);
   late DateTime _displayMonth;
 
@@ -53,12 +57,21 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
           });
         }
       });
+      _habitsSub = streamHabits(uid).listen((h) {
+        if (mounted) safeSetState(() => _habits = h);
+      });
+      final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      _habitLogSub = streamHabitLog(uid, todayStr).listen((log) {
+        if (mounted) safeSetState(() => _todayHabitLog = log);
+      });
     }
   }
 
   @override
   void dispose() {
     _cyclesSub?.cancel();
+    _habitsSub?.cancel();
+    _habitLogSub?.cancel();
     _model.dispose();
 
     super.dispose();
@@ -876,6 +889,8 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
                                       ),
                                     ].divide(SizedBox(height: 16.0)),
                                   ),
+                                  if (_habits.isNotEmpty)
+                                    _buildHabitTodos(context),
                                   Column(
                                     mainAxisSize: MainAxisSize.min,
                                     mainAxisAlignment: MainAxisAlignment.start,
@@ -1079,6 +1094,91 @@ class _TrackTabWidgetState extends State<TrackTabWidget> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildHabitTodos(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final uid = AuthManager.instance.currentUid;
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final completedCount = _habits.where((h) =>
+        _todayHabitLog?.completedHabits[h.id] == true).length;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("Today's Habits",
+                style: theme.titleMedium.override(
+                  font: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+                  color: theme.primaryText,
+                  letterSpacing: 0.0,
+                )),
+            Text('$completedCount/${_habits.length}',
+                style: GoogleFonts.inter(
+                    fontSize: 13, fontWeight: FontWeight.w600,
+                    color: completedCount == _habits.length
+                        ? theme.success : theme.secondaryText)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...List.generate(_habits.length, (i) {
+          final h = _habits[i];
+          final done = _todayHabitLog?.completedHabits[h.id] == true;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: uid == null ? null : () => toggleHabit(uid, todayStr, h.id, !done),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: done ? theme.success.withAlpha(15) : theme.secondaryBackground,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: done ? theme.success.withAlpha(60) : theme.alternate,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                      color: done ? theme.success : theme.secondaryText,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        h.title,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: done ? theme.secondaryText : theme.primaryText,
+                          decoration: done ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                    if (h.category.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.primary.withAlpha(15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(h.category,
+                            style: GoogleFonts.inter(fontSize: 10, color: theme.primary)),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

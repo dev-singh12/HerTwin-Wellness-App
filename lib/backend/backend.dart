@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:intl/intl.dart';
 
 import 'schema/users_record.dart';
 import 'schema/cycles_record.dart';
@@ -348,11 +349,17 @@ DocumentReference<Map<String, dynamic>> postRef(String id) =>
 
 String newPostId() => postsCollection.doc().id;
 
-Stream<List<PostsRecord>> streamPosts({int limit = 50}) => postsCollection
-    .orderBy('createdAt', descending: true)
-    .limit(limit)
-    .snapshots()
-    .map((s) => s.docs.map(PostsRecord.fromSnapshot).toList());
+Stream<List<PostsRecord>> streamPosts({int limit = 50, String? category}) {
+  Query<Map<String, dynamic>> q = postsCollection;
+  if (category != null && category.isNotEmpty) {
+    q = q.where('category', isEqualTo: category);
+  }
+  return q
+      .orderBy('createdAt', descending: true)
+      .limit(limit)
+      .snapshots()
+      .map((s) => s.docs.map(PostsRecord.fromSnapshot).toList());
+}
 
 Future<void> createPost(PostsRecord record) =>
     postRef(record.id).set(record.toMap());
@@ -557,6 +564,39 @@ Stream<AppointmentRecord?> streamNextAppointment(String uid) =>
             : AppointmentRecord.fromSnapshot(s.docs.first));
 
 // ---------------------------------------------------------------------------
+// Consultation chat messages (real-time)
+// Stored at: users/{uid}/appointments/{appointmentId}/messages/{messageId}
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> chatMessagesCollection(
+        String uid, String appointmentId) =>
+    appointmentsCollection(uid).doc(appointmentId).collection('messages');
+
+Stream<List<Map<String, dynamic>>> streamChatMessages(
+    String uid, String appointmentId) =>
+    chatMessagesCollection(uid, appointmentId)
+        .orderBy('sentAt', descending: false)
+        .snapshots()
+        .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+
+Future<void> sendChatMessage(String uid, String appointmentId, {
+  required String senderUid,
+  required String senderName,
+  required String content,
+  String type = 'text',
+}) => chatMessagesCollection(uid, appointmentId).doc().set({
+  'senderUid': senderUid,
+  'senderName': senderName,
+  'content': content,
+  'type': type,
+  'sentAt': Timestamp.fromDate(DateTime.now()),
+});
+
+/// Generate a Jitsi Meet room URL for a given appointment.
+String jitsiRoomUrl(String appointmentId) =>
+    'https://meet.jit.si/hertwin-$appointmentId';
+
+// ---------------------------------------------------------------------------
 // users/{uid}/reminders
 // ---------------------------------------------------------------------------
 
@@ -655,6 +695,16 @@ Future<void> toggleHabit(
       'completedHabits': {habitId: completed},
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
+
+Stream<List<HabitLogRecord>> streamRecentHabitLogs(String uid, int days) {
+  final startDate = DateFormat('yyyy-MM-dd').format(
+    DateTime.now().subtract(Duration(days: days)),
+  );
+  return habitLogsCollection(uid)
+      .where('date', isGreaterThanOrEqualTo: startDate)
+      .snapshots()
+      .map((s) => s.docs.map(HabitLogRecord.fromSnapshot).toList());
+}
 
 // ---------------------------------------------------------------------------
 // users/{uid}/feedback

@@ -29,6 +29,9 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
 
   int _activeTab = 0;
 
+  /// Active category filter on the Feed tab. null = All.
+  String? _feedCategory;
+
   String _authorName = 'You';
   String _authorPhotoUrl = '';
 
@@ -633,6 +636,8 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                     _buildTabs(),
                     const SizedBox(height: 24.0),
                     if (_activeTab == 0) ...[
+                      _buildFeedCategoryChips(),
+                      const SizedBox(height: 8.0),
                       _buildGroupsRow(),
                       const SizedBox(height: 24.0),
                       Padding(
@@ -782,10 +787,17 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                 ),
           ),
           if (showFilter)
-            Icon(
-              Icons.tune_rounded,
-              color: FlutterFlowTheme.of(context).secondaryText,
-              size: 20.0,
+            InkWell(
+              onTap: () {
+                safeSetState(() => _feedCategory = null);
+              },
+              child: Icon(
+                Icons.tune_rounded,
+                color: _feedCategory != null
+                    ? FlutterFlowTheme.of(context).primary
+                    : FlutterFlowTheme.of(context).secondaryText,
+                size: 20.0,
+              ),
             ),
         ],
       ),
@@ -928,6 +940,51 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
     );
   }
 
+  Widget _buildFeedCategoryChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsetsDirectional.fromSTEB(24.0, 0.0, 24.0, 0.0),
+      child: Row(
+        children: [
+          _filterChip(null, 'All'),
+          const SizedBox(width: 8),
+          ..._categories.map((c) => Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _filterChip(c, c),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String? value, String label) {
+    final selected = _feedCategory == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => safeSetState(() => _feedCategory = value),
+      showCheckmark: false,
+      backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+      selectedColor: FlutterFlowTheme.of(context).primary,
+      labelStyle: GoogleFonts.inter(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: selected
+            ? FlutterFlowTheme.of(context).onPrimary
+            : FlutterFlowTheme.of(context).secondaryText,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: selected
+              ? FlutterFlowTheme.of(context).primary
+              : FlutterFlowTheme.of(context).alternate,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+    );
+  }
+
   Widget _buildStoriesSection(String title, {required bool onlyLiked}) {
     final uid = AuthManager.instance.currentUid;
     return Padding(
@@ -948,16 +1005,30 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                       letterSpacing: 0.0,
                     ),
               ),
-              Icon(
-                Icons.tune_rounded,
-                color: FlutterFlowTheme.of(context).secondaryText,
-                size: 20.0,
-              ),
+              if (_feedCategory != null && !onlyLiked)
+                InkWell(
+                  onTap: () => safeSetState(() => _feedCategory = null),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: FlutterFlowTheme.of(context).primary.withAlpha(20),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_feedCategory!, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: FlutterFlowTheme.of(context).primary)),
+                        const SizedBox(width: 4),
+                        Icon(Icons.close, size: 14, color: FlutterFlowTheme.of(context).primary),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16.0),
           StreamBuilder<List<PostsRecord>>(
-            stream: streamPosts(),
+            stream: streamPosts(category: onlyLiked ? null : _feedCategory),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const Padding(

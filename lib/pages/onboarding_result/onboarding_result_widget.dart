@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import '/auth/auth_manager.dart';
+import '/backend/backend.dart';
+import '/business/scoring_engine.dart';
 import '/components/button/button_widget.dart';
 import '/components/insight_row/insight_row_widget.dart';
 import '/components/result_metric/result_metric_widget.dart';
@@ -26,21 +31,40 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  StreamSubscription<OnboardingAssessmentRecord?>? _assessmentSub;
+  ScoringResult? _result;
+
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => OnboardingResultModel());
+    final uid = AuthManager.instance.currentUid;
+    if (uid != null) {
+      _assessmentSub = streamLatestAssessment(uid).listen((rec) async {
+        if (rec != null && mounted) {
+          final user = await getUser(uid);
+          final result = ScoringEngine.compute(
+            conditionType: rec.conditionType,
+            answers: rec.answers,
+            age: user?.age ?? 25,
+          );
+          if (mounted) safeSetState(() => _result = result);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _assessmentSub?.cancel();
     _model.dispose();
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final score = _result?.healthScore ?? 0;
+    final scoreD = score.toDouble();
     final pieChartPieChartColorsList = [
       FlutterFlowTheme.of(context).onPrimary,
       FlutterFlowTheme.of(context).onPrimary20
@@ -170,7 +194,7 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                             height: 140.0,
                                             child: FlutterFlowPieChart(
                                               data: FFPieChartData(
-                                                values: ([78.0, 22.0]),
+                                                values: ([scoreD, (100 - scoreD)]),
                                                 colors:
                                                     pieChartPieChartColorsList,
                                                 radius: [15.0],
@@ -221,7 +245,7 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                                 CrossAxisAlignment.center,
                                             children: [
                                               Text(
-                                                '78',
+                                                '$score',
                                                 style:
                                                     FlutterFlowTheme.of(context)
                                                         .headlineLarge
@@ -308,7 +332,7 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                           CrossAxisAlignment.center,
                                       children: [
                                         Text(
-                                          'Hormonal Balance: Moderate',
+                                          _result?.diagnosisLabel ?? 'Health Assessment',
                                           style: FlutterFlowTheme.of(context)
                                               .titleMedium
                                               .override(
@@ -334,7 +358,7 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                               ),
                                         ),
                                         Text(
-                                          'You\'re showing signs of mild insulin resistance, common in PCOS. We can manage this together.',
+                                          _result?.explanation ?? 'Based on your answers, we have created a personalized wellness plan for you.',
                                           textAlign: TextAlign.center,
                                           style: FlutterFlowTheme.of(context)
                                               .bodySmall
@@ -395,7 +419,7 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                     size: 20.0,
                                   ),
                                   label: 'Cycle Regularity',
-                                  value: 'Irregular',
+                                  value: _result?.cycleRegularity ?? '—',
                                 ),
                               ),
                             ),
@@ -412,7 +436,7 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                     size: 20.0,
                                   ),
                                   label: 'Metabolic Rate',
-                                  value: 'Stable',
+                                  value: _result?.metabolicRate ?? '—',
                                 ),
                               ),
                             ),
@@ -468,57 +492,27 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
-                                      wrapWithModel(
-                                        model: _model.insightRowModel1,
-                                        updateCallback: () =>
-                                            safeSetState(() {}),
-                                        child: InsightRowWidget(
-                                          bg: Color(0xFFFFF3E0),
-                                          color: Color(0xFFE65100),
-                                          desc:
-                                              'Focus on whole grains to stabilize your hormone levels.',
-                                          icon: Icon(
-                                            Icons.restaurant_rounded,
-                                            color: Color(0xFFE65100),
-                                            size: 18.0,
+                                      if (_result != null)
+                                        for (var i = 0; i < _result!.focusAreas.length && i < 3; i++)
+                                          wrapWithModel(
+                                            model: i == 0
+                                                ? _model.insightRowModel1
+                                                : i == 1
+                                                    ? _model.insightRowModel2
+                                                    : _model.insightRowModel3,
+                                            updateCallback: () => safeSetState(() {}),
+                                            child: InsightRowWidget(
+                                              bg: [const Color(0xFFFFF3E0), const Color(0xFFE8EAF6), const Color(0xFFE8F5E9)][i % 3],
+                                              color: [const Color(0xFFE65100), const Color(0xFF3F51B5), const Color(0xFF2E7D32)][i % 3],
+                                              desc: _result!.focusAreas[i].subtitle,
+                                              icon: Icon(
+                                                [Icons.restaurant_rounded, Icons.self_improvement_rounded, Icons.fitness_center_rounded][i % 3],
+                                                color: [const Color(0xFFE65100), const Color(0xFF3F51B5), const Color(0xFF2E7D32)][i % 3],
+                                                size: 18.0,
+                                              ),
+                                              title: _result!.focusAreas[i].title,
+                                            ),
                                           ),
-                                          title: 'Low Glycemic Diet',
-                                        ),
-                                      ),
-                                      wrapWithModel(
-                                        model: _model.insightRowModel2,
-                                        updateCallback: () =>
-                                            safeSetState(() {}),
-                                        child: InsightRowWidget(
-                                          bg: Color(0xFFE8EAF6),
-                                          color: Color(0xFF3F51B5),
-                                          desc:
-                                              'Cortisol reduction is key for your PCOS type.',
-                                          icon: Icon(
-                                            Icons.self_improvement_rounded,
-                                            color: Color(0xFFE65100),
-                                            size: 18.0,
-                                          ),
-                                          title: 'Stress Management',
-                                        ),
-                                      ),
-                                      wrapWithModel(
-                                        model: _model.insightRowModel3,
-                                        updateCallback: () =>
-                                            safeSetState(() {}),
-                                        child: InsightRowWidget(
-                                          bg: Color(0xFFE8F5E9),
-                                          color: Color(0xFF2E7D32),
-                                          desc:
-                                              '3 days a week to improve insulin sensitivity.',
-                                          icon: Icon(
-                                            Icons.fitness_center_rounded,
-                                            color: Color(0xFFE65100),
-                                            size: 18.0,
-                                          ),
-                                          title: 'Strength Training',
-                                        ),
-                                      ),
                                     ].divide(SizedBox(height: 24.0)),
                                   ),
                                 ),

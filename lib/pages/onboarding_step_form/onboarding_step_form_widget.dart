@@ -1,10 +1,10 @@
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
+import '/business/assessment_questions.dart';
 import '/business/scoring_engine.dart';
 import '/components/button/button_widget.dart';
 import '/components/condition_chip/condition_chip_widget.dart';
 import '/components/step_indicator/step_indicator_widget.dart';
-import '/components/symptom_item/symptom_item_widget.dart';
 import '/components/text_field/text_field_widget.dart';
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -34,7 +34,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
   final Set<String> _selectedConditions = <String>{};
-  final Set<String> _selectedSymptoms = <String>{};
+  final Map<String, int> _answers = {};
   bool _saving = false;
   bool _uploadingPrescription = false;
   String? _prescriptionUrl;
@@ -54,17 +54,34 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
 
   void _toggleCondition(String condition) {
     setState(() {
-      if (!_selectedConditions.add(condition)) {
+      if (_selectedConditions.contains(condition)) {
+        // Deselect
         _selectedConditions.remove(condition);
+      } else {
+        // Max 2 conditions allowed
+        if (_selectedConditions.length >= 2) {
+          _selectedConditions.clear();
+        }
+        // Enforce exclusion rules
+        if (condition == 'Don\'t Know') {
+          // "Don't Know" can only pair with "Irregular Periods"
+          _selectedConditions.removeWhere((c) => c != 'Irregular Periods');
+        } else if (condition == 'Irregular Periods') {
+          // Irregular can pair with anything — no removals needed
+        } else {
+          // Selecting a specific condition removes "Don't Know"
+          _selectedConditions.remove('Don\'t Know');
+          // PCOS ↔ PCOD mutually exclusive
+          if (condition == 'PCOS') _selectedConditions.remove('PCOD');
+          if (condition == 'PCOD') _selectedConditions.remove('PCOS');
+          // PMS ↔ PMDD mutually exclusive
+          if (condition == 'PMS') _selectedConditions.remove('PMDD');
+          if (condition == 'PMDD') _selectedConditions.remove('PMS');
+        }
+        _selectedConditions.add(condition);
       }
-    });
-  }
-
-  void _toggleSymptom(String symptom) {
-    setState(() {
-      if (!_selectedSymptoms.add(symptom)) {
-        _selectedSymptoms.remove(symptom);
-      }
+      // Clear answers when conditions change (new question set)
+      _answers.clear();
     });
   }
 
@@ -78,6 +95,173 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
           backgroundColor: FlutterFlowTheme.of(context).error,
         ),
       );
+  }
+
+  List<AssessmentQuestion> _questionsForCondition() {
+    if (_selectedConditions.isEmpty) return [];
+
+    // Collect all selected condition keys
+    final condKeys = _selectedConditions.map((c) =>
+        c.toLowerCase().replaceAll(' ', '_').replaceAll("'", '')).toList();
+
+    // Single condition → take first 7 from its question set
+    if (condKeys.length == 1) {
+      final key = condKeys.first;
+      switch (key) {
+        case 'pcos':
+        case 'pcod':
+          return pcosQuestions.take(7).toList();
+        case 'pms':
+        case 'pmdd':
+          return pmsQuestions.take(7).toList();
+        case 'irregular_periods':
+        case 'irregular':
+          return irregularQuestions.take(7).toList();
+        case 'dont_know':
+          return unknownQuestions.take(7).toList();
+        default:
+          return unknownQuestions.take(7).toList();
+      }
+    }
+
+    // Multiple conditions → mix questions proportionally, max 7 total
+    final allSets = <List<AssessmentQuestion>>[];
+    for (final key in condKeys) {
+      switch (key) {
+        case 'pcos':
+        case 'pcod':
+          allSets.add(pcosQuestions);
+          break;
+        case 'pms':
+        case 'pmdd':
+          allSets.add(pmsQuestions);
+          break;
+        case 'irregular_periods':
+        case 'irregular':
+          allSets.add(irregularQuestions);
+          break;
+        default:
+          allSets.add(unknownQuestions);
+      }
+    }
+
+    // Distribute 7 questions across condition sets
+    final mixed = <AssessmentQuestion>[];
+    final perSet = (7 / allSets.length).floor().clamp(1, 7);
+    final usedIds = <String>{};
+    for (final qs in allSets) {
+      var taken = 0;
+      for (final q in qs) {
+        if (taken >= perSet || mixed.length >= 7) break;
+        if (!usedIds.contains(q.id)) {
+          mixed.add(q);
+          usedIds.add(q.id);
+          taken++;
+        }
+      }
+    }
+    // Fill remaining slots from the first set
+    if (mixed.length < 7 && allSets.isNotEmpty) {
+      for (final q in allSets.first) {
+        if (mixed.length >= 7) break;
+        if (!usedIds.contains(q.id)) {
+          mixed.add(q);
+          usedIds.add(q.id);
+        }
+      }
+    }
+    return mixed;
+  }
+
+  bool get _questionsAnswered {
+    final questions = _questionsForCondition();
+    if (questions.isEmpty) return false;
+    return questions.every((q) => _answers.containsKey(q.id));
+  }
+
+  Widget _buildQuestionsSection(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final questions = _questionsForCondition();
+    if (questions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Text('Health Assessment',
+            style: theme.titleMedium.override(
+              font: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+              letterSpacing: 0.0,
+            )),
+        const SizedBox(height: 4),
+        Text('Answer these to get a personalized wellness score.',
+            style: GoogleFonts.inter(fontSize: 13, color: theme.secondaryText)),
+        const SizedBox(height: 16),
+        ...questions.map((q) => _buildQuestionCard(theme, q)),
+      ],
+    );
+  }
+
+  Widget _buildQuestionCard(FlutterFlowTheme theme, AssessmentQuestion q) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.secondaryBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.alternate, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(q.text,
+              style: GoogleFonts.inter(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: theme.primaryText)),
+          const SizedBox(height: 12),
+          ...q.options.map((opt) {
+            final selected = _answers[q.id] == opt.score;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => setState(() => _answers[q.id] = opt.score),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: selected ? theme.primary.withAlpha(15) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected ? theme.primary : theme.alternate,
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        size: 20,
+                        color: selected ? theme.primary : theme.secondaryText,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(opt.label,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: selected ? theme.primaryText : theme.secondaryText,
+                              fontWeight: selected ? FontWeight.w500 : FontWeight.normal,
+                            )),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickAndUploadPrescription() async {
@@ -112,7 +296,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
     }
   }
 
-  Future<void> _completeOnboarding({bool skip = false}) async {
+  Future<void> _completeOnboarding() async {
     if (_saving) return;
 
     final uid = AuthManager.instance.currentUid;
@@ -122,15 +306,13 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
     }
 
     int? age;
-    if (!skip) {
-      final ageText =
-          _model.textFieldModel.inputTextController?.text.trim() ?? '';
-      if (ageText.isNotEmpty) {
-        age = int.tryParse(ageText);
-        if (age == null || age <= 0 || age > 120) {
-          _showError('Please enter a valid age.');
-          return;
-        }
+    final ageText =
+        _model.textFieldModel.inputTextController?.text.trim() ?? '';
+    if (ageText.isNotEmpty) {
+      age = int.tryParse(ageText);
+      if (age == null || age <= 0 || age > 120) {
+        _showError('Please enter a valid age.');
+        return;
       }
     }
 
@@ -144,7 +326,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
       // Compute a basic score from conditions/symptoms count
       final result = ScoringEngine.compute(
         conditionType: condition == 'irregular_periods' ? 'irregular' : condition,
-        answers: const {},
+        answers: _answers,
         age: age ?? 25,
       );
 
@@ -156,7 +338,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
           id: assessmentId,
           uid: uid,
           conditionType: condition == 'irregular_periods' ? 'irregular' : condition,
-          answers: const {},
+          answers: _answers,
           totalScore: result.totalScore,
           severityLevel: result.severityLevel,
           diagnosisLabel: result.diagnosisLabel,
@@ -176,9 +358,8 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
       await userRef(uid).set(
         {
           if (age != null) 'age': age,
-          if (!skip) 'conditions': _selectedConditions.toList(),
-          if (!skip) 'symptoms': _selectedSymptoms.toList(),
-          if (!skip && _prescriptionUrl != null)
+          'conditions': _selectedConditions.toList(),
+          if (_prescriptionUrl != null)
             'prescriptionUrl': _prescriptionUrl,
           'conditionType': condition == 'irregular_periods' ? 'irregular' : condition,
           'latestAssessmentScore': result.totalScore,
@@ -191,11 +372,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
         SetOptions(merge: true),
       );
       if (!mounted) return;
-      context.goNamed(
-        skip
-            ? HomeDashboardWidget.routeName
-            : OnboardingResultWidget.routeName,
-      );
+      context.goNamed(OnboardingResultWidget.routeName);
     } catch (e) {
       _showError('Could not save your profile. Please try again.');
     } finally {
@@ -213,6 +390,30 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
       child: Scaffold(
         key: scaffoldKey,
         backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: FloatingActionButton.extended(
+            heroTag: 'prescription_fab',
+            onPressed: _uploadingPrescription ? null : _pickAndUploadPrescription,
+            backgroundColor: _prescriptionUrl != null
+                ? FlutterFlowTheme.of(context).success
+                : FlutterFlowTheme.of(context).secondary,
+            icon: Icon(
+              _prescriptionUrl != null ? Icons.check_circle_rounded : Icons.upload_file_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            label: Text(
+              _uploadingPrescription
+                  ? 'Uploading...'
+                  : _prescriptionUrl != null
+                      ? 'Uploaded'
+                      : 'Upload Report',
+              style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
         body: SingleChildScrollView(
           primary: false,
           child: Column(
@@ -251,36 +452,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                               step: 2.0,
                             ),
                           ),
-                          InkWell(
-                            onTap: _saving
-                                ? null
-                                : () => _completeOnboarding(skip: true),
-                            child: Text(
-                              'Skip',
-                              style: FlutterFlowTheme.of(context)
-                                  .labelLarge
-                                  .override(
-                                    font: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .labelLarge
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .labelLarge
-                                          .fontStyle,
-                                    ),
-                                    color: FlutterFlowTheme.of(context)
-                                        .secondaryText,
-                                    letterSpacing: 0.0,
-                                    fontWeight: FlutterFlowTheme.of(context)
-                                        .labelLarge
-                                        .fontWeight,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .labelLarge
-                                        .fontStyle,
-                                    lineHeight: 1.3,
-                                  ),
-                            ),
-                          ),
+                          const SizedBox(width: 40),
                         ],
                       ),
                       Column(
@@ -535,266 +707,41 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                                   ),
                                 ),
                               ),
+                              InkWell(
+                                onTap: () => _toggleCondition('PMDD'),
+                                child: ConditionChipWidget(
+                                  icon: Icon(
+                                    Icons.mood_bad_rounded,
+                                    color: _selectedConditions.contains('PMDD')
+                                        ? FlutterFlowTheme.of(context).onPrimary
+                                        : FlutterFlowTheme.of(context).secondaryText,
+                                    size: 20.0,
+                                  ),
+                                  label: 'PMDD',
+                                  selected: _selectedConditions.contains('PMDD'),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () => _toggleCondition('Don\'t Know'),
+                                child: ConditionChipWidget(
+                                  icon: Icon(
+                                    Icons.help_outline_rounded,
+                                    color: _selectedConditions.contains('Don\'t Know')
+                                        ? FlutterFlowTheme.of(context).onPrimary
+                                        : FlutterFlowTheme.of(context).secondaryText,
+                                    size: 20.0,
+                                  ),
+                                  label: 'Don\'t Know',
+                                  selected: _selectedConditions.contains('Don\'t Know'),
+                                ),
+                              ),
                             ].divide(SizedBox(height: 8.0)),
                           ),
                         ].divide(SizedBox(height: 16.0)),
                       ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Common symptoms you face?',
-                            style: FlutterFlowTheme.of(context)
-                                .titleMedium
-                                .override(
-                                  font: GoogleFonts.plusJakartaSans(
-                                    fontWeight: FontWeight.w600,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .titleMedium
-                                        .fontStyle,
-                                  ),
-                                  letterSpacing: 0.0,
-                                  fontWeight: FontWeight.w600,
-                                  fontStyle: FlutterFlowTheme.of(context)
-                                      .titleMedium
-                                      .fontStyle,
-                                  lineHeight: 1.4,
-                                ),
-                          ),
-                          Wrap(
-                            spacing: 8.0,
-                            runSpacing: 8.0,
-                            alignment: WrapAlignment.start,
-                            crossAxisAlignment: WrapCrossAlignment.start,
-                            direction: Axis.horizontal,
-                            runAlignment: WrapAlignment.start,
-                            verticalDirection: VerticalDirection.down,
-                            clipBehavior: Clip.none,
-                            children: [
-                              InkWell(
-                                onTap: () => _toggleSymptom('Acne'),
-                                child: wrapWithModel(
-                                  model: _model.symptomItemModel1,
-                                  updateCallback: () => safeSetState(() {}),
-                                  child: SymptomItemWidget(
-                                    label: 'Acne',
-                                    active: _selectedSymptoms.contains('Acne'),
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () => _toggleSymptom('Hair Loss'),
-                                child: wrapWithModel(
-                                  model: _model.symptomItemModel2,
-                                  updateCallback: () => safeSetState(() {}),
-                                  child: SymptomItemWidget(
-                                    label: 'Hair Loss',
-                                    active:
-                                        _selectedSymptoms.contains('Hair Loss'),
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () => _toggleSymptom('Weight Gain'),
-                                child: wrapWithModel(
-                                  model: _model.symptomItemModel3,
-                                  updateCallback: () => safeSetState(() {}),
-                                  child: SymptomItemWidget(
-                                    label: 'Weight Gain',
-                                    active: _selectedSymptoms
-                                        .contains('Weight Gain'),
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () => _toggleSymptom('Mood Swings'),
-                                child: wrapWithModel(
-                                  model: _model.symptomItemModel4,
-                                  updateCallback: () => safeSetState(() {}),
-                                  child: SymptomItemWidget(
-                                    label: 'Mood Swings',
-                                    active: _selectedSymptoms
-                                        .contains('Mood Swings'),
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () => _toggleSymptom('Cramps'),
-                                child: wrapWithModel(
-                                  model: _model.symptomItemModel5,
-                                  updateCallback: () => safeSetState(() {}),
-                                  child: SymptomItemWidget(
-                                    label: 'Cramps',
-                                    active: _selectedSymptoms.contains('Cramps'),
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () => _toggleSymptom('Fatigue'),
-                                child: wrapWithModel(
-                                  model: _model.symptomItemModel6,
-                                  updateCallback: () => safeSetState(() {}),
-                                  child: SymptomItemWidget(
-                                    label: 'Fatigue',
-                                    active:
-                                        _selectedSymptoms.contains('Fatigue'),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ].divide(SizedBox(height: 16.0)),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Upload Prescription (Optional)',
-                            style: FlutterFlowTheme.of(context)
-                                .titleMedium
-                                .override(
-                                  font: GoogleFonts.plusJakartaSans(
-                                    fontWeight: FontWeight.w600,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .titleMedium
-                                        .fontStyle,
-                                  ),
-                                  letterSpacing: 0.0,
-                                  fontWeight: FontWeight.w600,
-                                  fontStyle: FlutterFlowTheme.of(context)
-                                      .titleMedium
-                                      .fontStyle,
-                                  lineHeight: 1.4,
-                                ),
-                          ),
-                          InkWell(
-                            onTap: _uploadingPrescription
-                                ? null
-                                : _pickAndUploadPrescription,
-                            borderRadius: BorderRadius.circular(28.0),
-                            child: Container(
-                            height: 160.0,
-                            decoration: BoxDecoration(
-                              color: FlutterFlowTheme.of(context)
-                                  .secondaryBackground,
-                              borderRadius: BorderRadius.circular(28.0),
-                              shape: BoxShape.rectangle,
-                              border: Border.all(
-                                color: _prescriptionUrl != null
-                                    ? FlutterFlowTheme.of(context).success
-                                    : FlutterFlowTheme.of(context).alternate,
-                                width: 2.0,
-                              ),
-                            ),
-                            alignment: AlignmentDirectional(0.0, 0.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 56.0,
-                                  height: 56.0,
-                                  decoration: BoxDecoration(
-                                    color:
-                                        FlutterFlowTheme.of(context).primary10,
-                                    borderRadius: BorderRadius.circular(9999.0),
-                                    shape: BoxShape.rectangle,
-                                  ),
-                                  alignment: AlignmentDirectional(0.0, 0.0),
-                                  child: _uploadingPrescription
-                                      ? SizedBox(
-                                          width: 24.0,
-                                          height: 24.0,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                              FlutterFlowTheme.of(context)
-                                                  .primary,
-                                            ),
-                                          ),
-                                        )
-                                      : Icon(
-                                          _prescriptionUrl != null
-                                              ? Icons.check_circle_rounded
-                                              : Icons.cloud_upload_rounded,
-                                          color: _prescriptionUrl != null
-                                              ? FlutterFlowTheme.of(context)
-                                                  .success
-                                              : FlutterFlowTheme.of(context)
-                                                  .onSurface,
-                                          size: 28.0,
-                                        ),
-                                ),
-                                Text(
-                                  _uploadingPrescription
-                                      ? 'Uploading report…'
-                                      : _prescriptionUrl != null
-                                          ? 'Report uploaded — tap to replace'
-                                          : 'Tap to upload medical reports',
-                                  style: FlutterFlowTheme.of(context)
-                                      .labelLarge
-                                      .override(
-                                        font: GoogleFonts.plusJakartaSans(
-                                          fontWeight:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelLarge
-                                                  .fontWeight,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelLarge
-                                                  .fontStyle,
-                                        ),
-                                        color: FlutterFlowTheme.of(context)
-                                            .onSurface,
-                                        letterSpacing: 0.0,
-                                        fontWeight: FlutterFlowTheme.of(context)
-                                            .labelLarge
-                                            .fontWeight,
-                                        fontStyle: FlutterFlowTheme.of(context)
-                                            .labelLarge
-                                            .fontStyle,
-                                        lineHeight: 1.3,
-                                      ),
-                                ),
-                                Text(
-                                  'PDF, JPG or PNG (Max 5MB)',
-                                  style: FlutterFlowTheme.of(context)
-                                      .labelSmall
-                                      .override(
-                                        font: GoogleFonts.plusJakartaSans(
-                                          fontWeight:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelSmall
-                                                  .fontWeight,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelSmall
-                                                  .fontStyle,
-                                        ),
-                                        color: FlutterFlowTheme.of(context)
-                                            .secondaryText,
-                                        letterSpacing: 0.0,
-                                        fontWeight: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontWeight,
-                                        fontStyle: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontStyle,
-                                        lineHeight: 1.2,
-                                      ),
-                                ),
-                              ].divide(SizedBox(height: 8.0)),
-                            ),
-                          ),
-                          ),
-                        ].divide(SizedBox(height: 16.0)),
-                      ),
+                      // Dynamic assessment questions (right after condition selection)
+                      if (_selectedConditions.isNotEmpty)
+                        _buildQuestionsSection(context),
                       Padding(
                         padding:
                             EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 24.0),
@@ -805,7 +752,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                           children: [
                             InkWell(
                               onTap:
-                                  _saving ? null : () => _completeOnboarding(),
+                                  (_saving || !_questionsAnswered) ? null : () => _completeOnboarding(),
                               child: wrapWithModel(
                                 model: _model.buttonModel,
                                 updateCallback: () => safeSetState(() {}),
@@ -819,7 +766,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                                   size: 'large',
                                   full_width: true,
                                   loading: _saving,
-                                  disabled: _saving,
+                                  disabled: _saving || !_questionsAnswered,
                                 ),
                               ),
                             ),

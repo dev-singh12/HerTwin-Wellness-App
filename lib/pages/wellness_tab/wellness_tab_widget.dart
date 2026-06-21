@@ -1,6 +1,7 @@
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
 import '/business/cycle_engine.dart';
+import '/business/wellness_content_catalog.dart';
 import '/components/category_chip/category_chip_widget.dart';
 import '/components/wellness_card/wellness_card_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -32,7 +33,6 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
 
   /// Selected wellness category: 0 All, 1 Yoga, 2 Mind, 3 Guides, 4 Meditation.
   int _activeCategory = 0;
-  static const _categoryLabels = ['All', 'Yoga', 'Mind', 'Guides', 'Meditation'];
 
   @override
   void initState() {
@@ -63,15 +63,6 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
   void _selectCategory(int index) {
     if (_activeCategory == index) return;
     safeSetState(() => _activeCategory = index);
-    final label = _categoryLabels[index];
-    _showMessage(
-        index == 0 ? 'Showing all practices.' : 'Showing $label practices.');
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   /// A featured practice tailored to the user's current cycle phase.
@@ -119,6 +110,304 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
           type: 'video',
         );
     }
+  }
+
+  // ── Dynamic category content ───────────────────────────────────────────
+
+  Widget _buildCategoryContent() {
+    final theme = FlutterFlowTheme.of(context);
+    switch (_activeCategory) {
+      case 1: return _buildYogaGrid(theme);
+      case 2: return _buildMindSection(theme);
+      case 3: return _buildArticlesList(theme);
+      case 4: return _buildMeditationGrid(theme);
+      default: return _buildAllContent(theme);
+    }
+  }
+
+  Widget _buildAllContent(FlutterFlowTheme theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(theme, 'Recommended for You'),
+        const SizedBox(height: 12),
+        InkWell(
+          onTap: () => context.pushNamed(YogaDetailWidget.routeName, extra: {'contentId': null}),
+          child: wrapWithModel(
+            model: _model.wellnessCardModel1,
+            updateCallback: () => safeSetState(() {}),
+            child: WellnessCardWidget(
+              duration: _recommendation.duration,
+              img_desc: _recommendation.img,
+              subtitle: _recommendation.subtitle,
+              title: _recommendation.title,
+              type: _recommendation.type,
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        _sectionTitle(theme, 'Mental Well-being'),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _quickTile(theme, Icons.favorite_rounded, 'Mood Journal', Color(0xFFF3E5F5), Color(0xFF7B1FA2), () => context.pushNamed(MoodJournalWidget.routeName))),
+            const SizedBox(width: 16),
+            Expanded(child: _quickTile(theme, Icons.air_rounded, 'Breathwork', Color(0xFFE1F5FE), Color(0xFF0288D1), () => context.pushNamed(BreathworkGuideWidget.routeName))),
+          ],
+        ),
+        const SizedBox(height: 24),
+        _sectionTitle(theme, 'Guided Meditations'),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 140,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: WellnessContentCatalog.meditationContents.map((m) => _meditationCard(theme, m)).toList(),
+          ),
+        ),
+        const SizedBox(height: 24),
+        _sectionTitle(theme, 'Educational Articles'),
+        const SizedBox(height: 12),
+        ...WellnessContentCatalog.articles.take(4).map((a) => _articleTile(theme, a)),
+      ],
+    );
+  }
+
+  Widget _buildYogaGrid(FlutterFlowTheme theme) {
+    final yogas = WellnessContentCatalog.yogaContents;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(theme, 'Yoga Flows \u{2022} ${yogas.length} practices'),
+        const SizedBox(height: 12),
+        ...yogas.map((y) => _contentTile(
+          theme,
+          icon: Icons.spa_rounded,
+          title: y.title,
+          subtitle: '${y.durationMins} min \u{2022} ${y.difficulty}',
+          description: y.description,
+          gradientColors: const [Color(0xFFFFF3E0), Color(0xFFFFE0B2)],
+          onTap: () => context.pushNamed(YogaDetailWidget.routeName, extra: {'contentId': y.id}),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildMindSection(FlutterFlowTheme theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(theme, 'Mindfulness & Well-being'),
+        const SizedBox(height: 12),
+        _contentTile(theme, icon: Icons.favorite_rounded, title: 'Mood Journal',
+            subtitle: '5 min \u{2022} Daily Practice',
+            description: 'Track your mood and discover patterns across your cycle.',
+            gradientColors: const [Color(0xFFF3E5F5), Color(0xFFE1BEE7)],
+            onTap: () => context.pushNamed(MoodJournalWidget.routeName)),
+        _contentTile(theme, icon: Icons.air_rounded, title: '4-7-8 Breathing',
+            subtitle: '3-5 min \u{2022} Anxiety Relief',
+            description: 'Clinically proven breathing technique to calm your nervous system.',
+            gradientColors: const [Color(0xFFE1F5FE), Color(0xFFB3E5FC)],
+            onTap: () => context.pushNamed(BreathworkGuideWidget.routeName)),
+        _contentTile(theme, icon: Icons.spa_rounded, title: 'Body Scan Meditation',
+            subtitle: '10 min \u{2022} Relaxation',
+            description: 'Release tension and connect with your body through guided awareness.',
+            gradientColors: const [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
+            onTap: () => context.pushNamed(MeditationGuideWidget.routeName, extra: {'contentId': 'meditation_pmr'})),
+      ],
+    );
+  }
+
+  Widget _buildArticlesList(FlutterFlowTheme theme) {
+    final articles = WellnessContentCatalog.articles;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(theme, 'Articles \u{2022} ${articles.length} reads'),
+        const SizedBox(height: 12),
+        ...articles.map((a) => _articleTile(theme, a)),
+      ],
+    );
+  }
+
+  Widget _buildMeditationGrid(FlutterFlowTheme theme) {
+    final meditations = WellnessContentCatalog.meditationContents;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(theme, 'Guided Meditations \u{2022} ${meditations.length} sessions'),
+        const SizedBox(height: 12),
+        ...meditations.map((m) => _contentTile(
+          theme,
+          icon: m.icon,
+          title: m.title,
+          subtitle: '${m.durationMins} min \u{2022} ${m.poses.length} steps',
+          description: m.description,
+          gradientColors: const [Color(0xFF1A1A2E), Color(0xFF16213E)],
+          textLight: true,
+          onTap: () => context.pushNamed(MeditationGuideWidget.routeName, extra: {'contentId': m.id}),
+        )),
+      ],
+    );
+  }
+
+  // ── Reusable building blocks ───────────────────────────────────────────
+
+  Widget _sectionTitle(FlutterFlowTheme theme, String text) {
+    return Text(
+      text,
+      style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: theme.primaryText),
+    );
+  }
+
+  Widget _quickTile(FlutterFlowTheme theme, IconData icon, String label, Color bg, Color textColor, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 120,
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(28)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: theme.onSurface, size: 28),
+            const SizedBox(height: 8),
+            Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _meditationCard(FlutterFlowTheme theme, WellnessContent m) {
+    return GestureDetector(
+      onTap: () => context.pushNamed(MeditationGuideWidget.routeName, extra: {'contentId': m.id}),
+      child: Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1A1A2E), Color(0xFF0F3460)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(m.icon, color: Colors.white70, size: 28),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(m.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                Text('${m.durationMins} min', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _contentTile(FlutterFlowTheme theme, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String description,
+    required List<Color> gradientColors,
+    required VoidCallback onTap,
+    bool textLight = false,
+  }) {
+    final textColor = textLight ? Colors.white : theme.primaryText;
+    final subColor = textLight ? Colors.white70 : theme.secondaryText;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: gradientColors),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: (textLight ? Colors.white : theme.onSurface).withAlpha(textLight ? 30 : 15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 24, color: textLight ? Colors.white : theme.onSurface),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+                    Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: subColor)),
+                    const SizedBox(height: 4),
+                    Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 12, color: subColor)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: subColor, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _articleTile(FlutterFlowTheme theme, WellnessArticle a) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.pushNamed(ArticleDetailWidget.routeName, extra: {'articleId': a.id}),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.alternate, width: 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: theme.primary.withAlpha(20),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.article_rounded, size: 22, color: theme.primary),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: theme.primaryText)),
+                    Text('${a.readMins} min read \u{2022} ${a.category}', style: GoogleFonts.inter(fontSize: 11, color: theme.secondaryText)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: theme.secondaryText, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -332,309 +621,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
                   Padding(
                     padding:
                         EdgeInsetsDirectional.fromSTEB(24.0, 0.0, 24.0, 0.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.max,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Recommended for You',
-                              style: FlutterFlowTheme.of(context)
-                                  .titleMedium
-                                  .override(
-                                    font: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w600,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .titleMedium
-                                          .fontStyle,
-                                    ),
-                                    letterSpacing: 0.0,
-                                    fontWeight: FontWeight.w600,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .titleMedium
-                                        .fontStyle,
-                                    lineHeight: 1.4,
-                                  ),
-                            ),
-                            InkWell(
-                              onTap: () => context.pushNamed(
-                                  YogaDetailWidget.routeName),
-                              child: Text(
-                              'See All',
-                              style: FlutterFlowTheme.of(context)
-                                  .labelLarge
-                                  .override(
-                                    font: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .labelLarge
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .labelLarge
-                                          .fontStyle,
-                                    ),
-                                    color:
-                                        FlutterFlowTheme.of(context).primary,
-                                    letterSpacing: 0.0,
-                                    fontWeight: FlutterFlowTheme.of(context)
-                                        .labelLarge
-                                        .fontWeight,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .labelLarge
-                                        .fontStyle,
-                                    lineHeight: 1.3,
-                                  ),
-                            ),
-                            ),
-                          ],
-                        ),
-                        InkWell(
-                          onTap: () => context.pushNamed(
-                              YogaDetailWidget.routeName,
-                              extra: {'contentId': null}),
-                          child: wrapWithModel(
-                          model: _model.wellnessCardModel1,
-                          updateCallback: () => safeSetState(() {}),
-                          child: WellnessCardWidget(
-                            duration: _recommendation.duration,
-                            img_desc: _recommendation.img,
-                            subtitle: _recommendation.subtitle,
-                            title: _recommendation.title,
-                            type: _recommendation.type,
-                          ),
-                        ),
-                        ),
-                        Container(
-                          height: 16.0,
-                        ),
-                        Text(
-                          'Mental Well-being',
-                          style:
-                              FlutterFlowTheme.of(context).titleMedium.override(
-                                    font: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w600,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .titleMedium
-                                          .fontStyle,
-                                    ),
-                                    letterSpacing: 0.0,
-                                    fontWeight: FontWeight.w600,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .titleMedium
-                                        .fontStyle,
-                                    lineHeight: 1.4,
-                                  ),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.max,
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              flex: 1,
-                              child: InkWell(
-                                onTap: () => context.pushNamed(MoodJournalWidget.routeName),
-                                child: Container(
-                                height: 120.0,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF3E5F5),
-                                  borderRadius: BorderRadius.circular(28.0),
-                                  shape: BoxShape.rectangle,
-                                ),
-                                child: Padding(
-                                  padding: EdgeInsets.all(24.0),
-                                  child: Container(
-                                    child: Container(
-                                      height: 72.0,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.favorite_rounded,
-                                            color: FlutterFlowTheme.of(context)
-                                                .onSurface,
-                                            size: 28.0,
-                                          ),
-                                          Text(
-                                            'Mood Journal',
-                                            style: FlutterFlowTheme.of(context)
-                                                .labelLarge
-                                                .override(
-                                                  font: GoogleFonts
-                                                      .plusJakartaSans(
-                                                    fontWeight:
-                                                        FlutterFlowTheme.of(
-                                                                context)
-                                                            .labelLarge
-                                                            .fontWeight,
-                                                    fontStyle:
-                                                        FlutterFlowTheme.of(
-                                                                context)
-                                                            .labelLarge
-                                                            .fontStyle,
-                                                  ),
-                                                  color: Color(0xFF7B1FA2),
-                                                  letterSpacing: 0.0,
-                                                  fontWeight:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelLarge
-                                                          .fontWeight,
-                                                  fontStyle:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelLarge
-                                                          .fontStyle,
-                                                  lineHeight: 1.3,
-                                                ),
-                                          ),
-                                        ].divide(SizedBox(height: 8.0)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 1,
-                              child: InkWell(
-                                onTap: () => context.pushNamed(BreathworkGuideWidget.routeName),
-                                child: Container(
-                                height: 120.0,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFE1F5FE),
-                                  borderRadius: BorderRadius.circular(28.0),
-                                  shape: BoxShape.rectangle,
-                                ),
-                                child: Padding(
-                                  padding: EdgeInsets.all(24.0),
-                                  child: Container(
-                                    child: Container(
-                                      height: 72.0,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.air_rounded,
-                                            color: FlutterFlowTheme.of(context)
-                                                .onSurface,
-                                            size: 28.0,
-                                          ),
-                                          Text(
-                                            'Breathwork',
-                                            style: FlutterFlowTheme.of(context)
-                                                .labelLarge
-                                                .override(
-                                                  font: GoogleFonts
-                                                      .plusJakartaSans(
-                                                    fontWeight:
-                                                        FlutterFlowTheme.of(
-                                                                context)
-                                                            .labelLarge
-                                                            .fontWeight,
-                                                    fontStyle:
-                                                        FlutterFlowTheme.of(
-                                                                context)
-                                                            .labelLarge
-                                                            .fontStyle,
-                                                  ),
-                                                  color: Color(0xFF0288D1),
-                                                  letterSpacing: 0.0,
-                                                  fontWeight:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelLarge
-                                                          .fontWeight,
-                                                  fontStyle:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelLarge
-                                                          .fontStyle,
-                                                  lineHeight: 1.3,
-                                                ),
-                                          ),
-                                        ].divide(SizedBox(height: 8.0)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              ),
-                            ),
-                          ].divide(SizedBox(width: 16.0)),
-                        ),
-                        Container(
-                          height: 24.0,
-                        ),
-                        Text(
-                          'Educational Articles',
-                          style:
-                              FlutterFlowTheme.of(context).titleMedium.override(
-                                    font: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w600,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .titleMedium
-                                          .fontStyle,
-                                    ),
-                                    letterSpacing: 0.0,
-                                    fontWeight: FontWeight.w600,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .titleMedium
-                                        .fontStyle,
-                                    lineHeight: 1.4,
-                                  ),
-                        ),
-                        InkWell(
-                          onTap: () => context.pushNamed(
-                              ArticleDetailWidget.routeName,
-                              extra: {'articleId': 'art_pcos_diet'}),
-                          child: wrapWithModel(
-                          model: _model.wellnessCardModel2,
-                          updateCallback: () => safeSetState(() {}),
-                          child: WellnessCardWidget(
-                            duration: '8 min read',
-                            img_desc:
-                                'https://dimg.dreamflow.cloud/v1/image/abstract%20soft%20pastel%20medical%20illustration',
-                            subtitle:
-                                'A deep dive into hormonal imbalances and how to manage them naturally.',
-                            title: 'Understanding PCOS',
-                            type: 'article',
-                          ),
-                        ),
-                        ),
-                        InkWell(
-                          onTap: () => context.pushNamed(
-                              ArticleDetailWidget.routeName,
-                              extra: {'articleId': 'art_pms_nutrition'}),
-                          child: wrapWithModel(
-                          model: _model.wellnessCardModel3,
-                          updateCallback: () => safeSetState(() {}),
-                          child: WellnessCardWidget(
-                            duration: '5 min read',
-                            img_desc:
-                                'https://dimg.dreamflow.cloud/v1/image/healthy%20colorful%20bowl%20of%20fruits%20and%20seeds',
-                            subtitle:
-                                'Foods that help reduce bloating and mood swings before your period.',
-                            title: 'Nutrition for PMS',
-                            type: 'article',
-                          ),
-                        ),
-                        ),
-                      ].divide(SizedBox(height: 16.0)),
-                    ),
+                    child: _buildCategoryContent(),
                   ),
                   Container(
                     height: 100.0,

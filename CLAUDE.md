@@ -136,6 +136,7 @@ All registered in `lib/flutter_flow/nav/nav.dart` as `FFRoute(name, path, builde
 | `consultation_chat` | `ConsultationChat` | doctor chat (LOCAL auto-reply only) |
 | `profile` | `Profile` | photo upload, name edit, sign-out, stats (net-new) |
 | `insights` | `Insights` | fl_chart analytics (net-new) |
+| `meditation_guide` | `MeditationGuide` | guided meditation timer + steps (net-new) |
 
 ---
 
@@ -173,7 +174,8 @@ Access via helpers in `backend.dart`: `streamX`, `createX`, `updateX`,
 - `lib/business/cycle_engine.dart` — cycle phase computation.
 - `lib/business/scoring_engine.dart` — onboarding assessment scoring (pure Dart).
 - `lib/business/assessment_questions.dart` — question data for all conditions.
-- `lib/business/wellness_content_catalog.dart` — yoga, articles, mindfulness content.
+- `lib/business/wellness_content_catalog.dart` — yoga, articles, mindfulness,
+  **guided meditation** content.
 - `lib/backend/seed_data.dart` — doctor seeding function.
 
 ### Community (cross-user, top-level) — added most recently
@@ -215,8 +217,10 @@ Community helpers in `backend.dart`: `streamPosts`, `createPost`, `deletePost`,
 - `HomeDashboard` is the hub: avatar → `Profile`; week strip → `TrackTab`;
   "Cycle Yoga" → `YogaDetail`; "Journal" → `MoodJournal`; "Edit" ritual →
   `ReminderManagement`; consultation banner → `ConsultationChat`.
-- `WellnessTab`: featured card → `YogaDetail`; "Mood Journal" → `MoodJournal`;
-  "Breathwork" → `BreathworkGuide`; articles → `ArticleDetail`.
+- `WellnessTab`: category chips filter content dynamically (All/Yoga/Mind/
+  Guides/Meditation); featured card → `YogaDetail`; "Mood Journal" →
+  `MoodJournal`; "Breathwork" → `BreathworkGuide`; articles → `ArticleDetail`;
+  meditation cards → `MeditationGuide`.
 - `OnboardingResult` → `DoctorSelection` (Book Free Consultation).
 - `DoctorSelection` → `AppointmentConfirmation` → `ConsultationChat`.
 - `MoodJournal`: "Blogs" tab opens external URLs via url_launcher.
@@ -293,13 +297,31 @@ Delivered in phases (see git log on `flutterflow`):
      collection, appointments composite index deployed.
    - **Storage rules created:** `storage.rules` (user owns their path, 10MB
      image limit). Needs Firebase Storage to be initialized in console first.
+8. **Phase 5 (done)** — TrackTab full calendar rewrite + health habit todos.
+9. **Phase 6 — Full Medicine Reminder System:**
+   - Dashboard "Today's Rituals" now live from Firestore reminders + per-time
+     completion tracking via `ReminderLogRecord`.
+   - ReminderManagement page: "Today's Medicines" section with per-time
+     checkbox pills, "All Reminders" section with swipe-to-delete, active/
+     inactive toggle, tap-to-edit bottom sheet.
+   - Edit + Add unified into single `_showReminderSheet()`. Type-based
+     icon colours (pill=pink, vitamin=green, syrup=blue, injection=purple).
+   - Dashboard model: removed hardcoded `ritualTileModel1/2/3`.
+10. **Phase 7 — Wellness Tab Deep Content + Meditation Guide:**
+    - Content catalog expanded: 12 yoga flows (+4), 4 guided meditations (new
+      `meditationContents` list), 13 articles (+3).
+    - New page: `meditation_guide` — dark-themed immersive UI, step-by-step
+      timer, pulsing circle animation, progress bar, Start/Pause/Skip/Restart.
+    - WellnessTab category chips now actually filter content (were decorative).
+      All tab shows featured + mental well-being + meditation carousel +
+      articles. Each category shows its full content list.
 
 ---
 
 ## 9. Current state (PRESENT)
 
 - Branch `flutterflow`; last committed HEAD = `ddc4e40`.
-- **Local uncommitted changes** contain all of V2 Enhancement (Phase 7 above).
+- **Local uncommitted changes** contain V2 Enhancement + Phases 5–7.
 - `flutter analyze` = 2 issues (the 2 pre-existing FlutterFlow warnings only).
 - `flutter build web --no-tree-shake-icons` compiles successfully.
 - **Firestore rules + indexes deployed** (doctors, meta, appointments index).
@@ -307,37 +329,38 @@ Delivered in phases (see git log on `flutterflow`):
   Firebase Console → Storage → "Get Started" before uploads work.
 - `.claude/` is untracked locally and should NOT be committed.
 
-### Pages (18 total now)
+### Pages (19 total now)
 
 | Page | routeName | Status |
 |---|---|---|
 | `auth_screen` | `AuthScreen` | Original FF ✓ |
 | `onboarding_step_form` | `OnboardingStepForm` | Original FF UI + scoring logic ✓ |
 | `onboarding_result` | `OnboardingResult` | Original FF UI ✓ |
-| `home_dashboard` | `HomeDashboard` | Original FF UI + seed + navigation fixes ✓ |
+| `home_dashboard` | `HomeDashboard` | FF UI + live Firestore reminders ✓ |
 | `track_tab` | `TrackTab` | Original FF ✓ |
 | `log_symptoms_modal` | `LogSymptomsModal` | Original FF + report upload ✓ |
-| `wellness_tab` | `WellnessTab` | FF + navigation to yoga/journal/breathwork ✓ |
+| `wellness_tab` | `WellnessTab` | FF + dynamic category filtering ✓ |
 | `community_feed` | `CommunityFeed` | Real cross-user feed ✓ |
 | `consultation_chat` | `ConsultationChat` | Auto-reply + report upload ✓ |
 | `profile` | `Profile` | Photo, name, sign-out + reminder link ✓ |
 | `insights` | `Insights` | fl_chart analytics ✓ |
 | `doctor_selection` | `DoctorSelection` | NEW — specialist picker + booking ✓ |
 | `appointment_confirmation` | `AppointmentConfirmation` | NEW — booking success ✓ |
-| `reminder_management` | `ReminderManagement` | NEW — add/edit/delete reminders ✓ |
+| `reminder_management` | `ReminderManagement` | Full CRUD + today's view + per-time checkboxes ✓ |
 | `yoga_detail` | `YogaDetail` | NEW — timer + poses, condition-aware ✓ |
 | `article_detail` | `ArticleDetail` | NEW — full article text ✓ |
 | `breathwork_guide` | `BreathworkGuide` | NEW — 4-7-8 breathing animation ✓ |
 | `mood_journal` | `MoodJournal` | NEW — mood + blogs tabs ✓ |
+| `meditation_guide` | `MeditationGuide` | NEW — guided meditation timer ✓ |
 
 ---
 
 ## 10. Future / not yet done (FUTURE)
 
 ### Remaining Phases (user-approved roadmap):
-- **Phase 5:** TrackTab full calendar rewrite + health habit todos
-- **Phase 6:** Full medicine reminder system + local notifications (Android)
-- **Phase 7:** Wellness tab deep content (more yoga flows, guided meditations)
+- **Phase 5:** ✅ Done (TrackTab full calendar + habit todos)
+- **Phase 6:** ✅ Done (Full medicine reminder system + dashboard integration)
+- **Phase 7:** ✅ Done (Wellness deep content + meditation guide page)
 - **Phase 8:** Community feed category filters + compose category picker
 - **Phase 9:** Insights page enhancements (symptom trends, habit completion)
 - **Phase 10:** Profile enhancements (condition card, retake assessment, rate app)

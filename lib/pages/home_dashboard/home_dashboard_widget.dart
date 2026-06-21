@@ -54,10 +54,15 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
   StreamSubscription<UsersRecord>? _userSub;
   StreamSubscription<List<CyclesRecord>>? _cyclesSub;
   StreamSubscription<List<MoodsRecord>>? _moodsSub;
+  StreamSubscription<List<MedicineReminderRecord>>? _remindersSub;
+  StreamSubscription<List<ReminderLogRecord>>? _reminderLogsSub;
 
   UsersRecord? _user;
   CycleStatus _status = CycleEngine.compute(const []);
   MoodsRecord? _todayMood;
+  List<MedicineReminderRecord> _reminders = [];
+  List<ReminderLogRecord> _reminderLogs = [];
+  bool _loading = true;
 
   @override
   void initState() {
@@ -66,27 +71,53 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
 
     final uid = AuthManager.instance.currentUid;
     if (uid != null) {
-      seedDoctorsIfNeeded().catchError((_) {});
-      _userSub = streamUser(uid).listen((u) {
-        if (mounted) safeSetState(() => _user = u);
-      });
-      _cyclesSub = streamCycles(uid).listen((cycles) {
-        if (mounted) {
-          safeSetState(() => _status = CycleEngine.compute(cycles));
+      // Check onboarding FIRST — only set up streams if user is ready
+      getUser(uid).then((user) {
+        if (!mounted) return;
+        if (user == null || !user.onboardingComplete) {
+          context.goNamed(OnboardingStepFormWidget.routeName);
+          return;
         }
-      });
-      _moodsSub = streamMoods(uid).listen((moods) {
-        final now = DateTime.now();
-        MoodsRecord? todays;
-        for (final m in moods) {
-          if (AppDateUtils.isSameDay(m.date, now)) {
-            todays = m;
-            break;
-          }
-        }
-        if (mounted) safeSetState(() => _todayMood = todays);
+        // User is onboarded — now safe to set up streams
+        seedDoctorsIfNeeded().catchError((_) {});
+        safeSetState(() => _loading = false);
+        _startStreams(uid);
+      }).catchError((_) {
+        // If user doc doesn't exist yet (brand new account), redirect to onboarding
+        if (mounted) context.goNamed(OnboardingStepFormWidget.routeName);
       });
     }
+  }
+
+  void _startStreams(String uid) {
+    _userSub = streamUser(uid).listen((u) {
+      if (mounted) safeSetState(() => _user = u);
+    });
+    _cyclesSub = streamCycles(uid).listen((cycles) {
+      if (mounted) {
+        safeSetState(() => _status = CycleEngine.compute(cycles));
+      }
+    });
+    _moodsSub = streamMoods(uid).listen((moods) {
+      final now = DateTime.now();
+      MoodsRecord? todays;
+      for (final m in moods) {
+        if (AppDateUtils.isSameDay(m.date, now)) {
+          todays = m;
+          break;
+        }
+      }
+      if (mounted) safeSetState(() => _todayMood = todays);
+    });
+    _remindersSub = streamReminders(uid).listen((list) {
+      if (mounted) {
+        safeSetState(() => _reminders = list.where((r) => r.isActive).toList());
+      }
+    });
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _reminderLogsSub = streamReminderLogs(uid, todayStr).listen((logs) {
+      if (mounted) safeSetState(() => _reminderLogs = logs);
+    });
   }
 
   @override
@@ -94,6 +125,8 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
     _userSub?.cancel();
     _cyclesSub?.cancel();
     _moodsSub?.cancel();
+    _remindersSub?.cancel();
+    _reminderLogsSub?.cancel();
     _model.dispose();
 
     super.dispose();
@@ -131,13 +164,37 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
 
   void _openTrack() => context.pushNamed(TrackTabWidget.routeName);
 
-  /// Locally tracked completion of today's rituals (indices 0..2).
-  final Set<int> _ritualsDone = {0, 2};
+  bool _isTimeChecked(String reminderId, String time) {
+    final log = _reminderLogs.where((l) => l.reminderId == reminderId).firstOrNull;
+    return log?.timesChecked[time] ?? false;
+  }
 
-  void _toggleRitual(int index) =>
-      safeSetState(() => _ritualsDone.contains(index)
-          ? _ritualsDone.remove(index)
-          : _ritualsDone.add(index));
+  void _toggleReminderTime(String reminderId, String time) {
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null) return;
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final checked = !_isTimeChecked(reminderId, time);
+    updateReminderLog(uid, reminderId, todayStr, time, checked);
+  }
+
+  IconData _reminderIcon(String type) {
+    switch (type) {
+      case 'vitamin': return Icons.eco;
+      case 'syrup': return Icons.local_drink;
+      case 'injection': return Icons.vaccines;
+      default: return Icons.medication;
+    }
+  }
+
+  String _formatTime(String time24) {
+    final parts = time24.split(':');
+    if (parts.length != 2) return time24;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = parts[1];
+    final ampm = h >= 12 ? 'PM' : 'AM';
+    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    return '$h12:$m $ampm';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +203,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
       FlutterFlowTheme.of(context).onPrimary20
     ];
     final week = _weekDays();
-    final score = _status.vitalityScore;
+    final score = _user?.healthVitalityScore ?? 0;
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
@@ -155,7 +212,18 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
       child: Scaffold(
         key: scaffoldKey,
         backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-        body: Stack(
+        body: _loading
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: FlutterFlowTheme.of(context).primary),
+                    const SizedBox(height: 16),
+                    Text('Loading your dashboard...', style: GoogleFonts.inter(color: FlutterFlowTheme.of(context).secondaryText)),
+                  ],
+                ),
+              )
+            : Stack(
           alignment: AlignmentDirectional(-1.0, -1.0),
           children: [
             SingleChildScrollView(
@@ -755,70 +823,39 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                     ),
                                   ],
                                 ),
-                                Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.start,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    InkWell(
-                                      onTap: () => _toggleRitual(0),
-                                      child: wrapWithModel(
-                                      model: _model.ritualTileModel1,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: RitualTileWidget(
-                                        bg: Color(0xFFFCE4EC),
-                                        color: Color(0xFFF06292),
-                                        icon: Icon(
-                                          Icons.medication_rounded,
-                                          color: Color(0xFFF06292),
-                                          size: 24.0,
-                                        ),
-                                        time: '09:00 AM',
-                                        title: 'Vitamin B Complex',
-                                        done: _ritualsDone.contains(0),
-                                      ),
+                                if (_reminders.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    child: Text(
+                                      'No reminders yet \u2014 tap Edit to add one',
+                                      style: GoogleFonts.inter(fontSize: 13, color: FlutterFlowTheme.of(context).secondaryText),
                                     ),
-                                    ),
-                                    InkWell(
-                                      onTap: () => _toggleRitual(1),
-                                      child: wrapWithModel(
-                                      model: _model.ritualTileModel2,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: RitualTileWidget(
-                                        bg: Color(0xFFE8EAF6),
-                                        color: Color(0xFF7986CB),
-                                        icon: Icon(
-                                          Icons.bed_rounded,
-                                          color: Color(0xFFF06292),
-                                          size: 24.0,
-                                        ),
-                                        time: '10:30 PM',
-                                        title: 'Evening Meditation',
-                                        done: _ritualsDone.contains(1),
-                                      ),
-                                    ),
-                                    ),
-                                    InkWell(
-                                      onTap: () => _toggleRitual(2),
-                                      child: wrapWithModel(
-                                      model: _model.ritualTileModel3,
-                                      updateCallback: () => safeSetState(() {}),
-                                      child: RitualTileWidget(
-                                        bg: Color(0xFFE0F2F1),
-                                        color: Color(0xFF4DB6AC),
-                                        icon: Icon(
-                                          Icons.local_drink_rounded,
-                                          color: Color(0xFFF06292),
-                                          size: 24.0,
-                                        ),
-                                        time: 'All Day',
-                                        title: 'Hydration Goal',
-                                        done: _ritualsDone.contains(2),
-                                      ),
-                                    ),
-                                    ),
-                                  ].divide(SizedBox(height: 4.0)),
-                                ),
+                                  )
+                                else
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      for (final r in _reminders)
+                                        for (final t in r.reminderTimes)
+                                          InkWell(
+                                            onTap: () => _toggleReminderTime(r.id, t),
+                                            child: RitualTileWidget(
+                                              bg: Color(r.iconColorValue).withAlpha(30),
+                                              color: Color(r.iconColorValue),
+                                              icon: Icon(
+                                                _reminderIcon(r.iconType),
+                                                color: Color(r.iconColorValue),
+                                                size: 24.0,
+                                              ),
+                                              time: _formatTime(t),
+                                              title: r.medicineName,
+                                              done: _isTimeChecked(r.id, t),
+                                            ),
+                                          ),
+                                    ].divide(SizedBox(height: 4.0)),
+                                  ),
                               ].divide(SizedBox(height: 16.0)),
                             ),
                           ),
@@ -947,7 +984,10 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                             ),
                                           ),
                                           ),
-                                          Container(
+                                          InkWell(
+                                            onTap: () => context.pushNamed(
+                                                ProfileWidget.routeName),
+                                            child: Container(
                                             height: 100.0,
                                             decoration: BoxDecoration(
                                               color: Color(0xFFE8F5E9),
@@ -1019,6 +1059,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                 ),
                                               ),
                                             ),
+                                          ),
                                           ),
                                         ].divide(SizedBox(height: 16.0)),
                                       ),
@@ -1110,9 +1151,16 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                           ),
                                           ),
                                           InkWell(
-                                            onTap: () => context.pushNamed(
-                                                ConsultationChatWidget
-                                                    .routeName),
+                                            onTap: () {
+                                              final usedFree = _user?.hasUsedFreeConsultation ?? false;
+                                              if (usedFree) {
+                                                context.pushNamed(DoctorSelectionWidget.routeName,
+                                                    extra: {'appointmentType': 'paid'});
+                                              } else {
+                                                context.pushNamed(DoctorSelectionWidget.routeName,
+                                                    extra: {'appointmentType': 'free'});
+                                              }
+                                            },
                                             child: Container(
                                             height: 160.0,
                                             decoration: BoxDecoration(
@@ -1146,7 +1194,9 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                                         size: 32.0,
                                                       ),
                                                       Text(
-                                                        'Expert Help',
+                                                        (_user?.hasUsedFreeConsultation ?? false)
+                                                            ? 'Book Expert'
+                                                            : 'Free Consult',
                                                         style:
                                                             FlutterFlowTheme.of(
                                                                     context)

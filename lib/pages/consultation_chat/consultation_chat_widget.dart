@@ -1,18 +1,17 @@
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
-import '/business/cycle_engine.dart';
 import '/components/chat_bubble/chat_bubble_widget.dart';
-import '/components/report_attachment/report_attachment_widget.dart';
 import '/components/text_field/text_field_widget.dart';
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lottie/lottie.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'consultation_chat_model.dart';
 export 'consultation_chat_model.dart';
 
@@ -31,9 +30,9 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
-  StreamSubscription<List<CyclesRecord>>? _cyclesSub;
-  CycleStatus _status = CycleEngine.compute(const []);
-  final List<({String message, String time, bool isSent})> _extraMessages = [];
+  StreamSubscription<AppointmentRecord?>? _apptSub;
+  AppointmentRecord? _appointment;
+  String _doctorName = 'Dr. Sarah Jenkins';
 
   @override
   void initState() {
@@ -42,9 +41,14 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
 
     final uid = AuthManager.instance.currentUid;
     if (uid != null) {
-      _cyclesSub = streamCycles(uid).listen((cycles) {
+      _apptSub = streamNextAppointment(uid).listen((appt) {
         if (mounted) {
-          safeSetState(() => _status = CycleEngine.compute(cycles));
+          safeSetState(() {
+            _appointment = appt;
+            if (appt != null && appt.doctorName.isNotEmpty) {
+              _doctorName = appt.doctorName;
+            }
+          });
         }
       });
     }
@@ -52,7 +56,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
 
   @override
   void dispose() {
-    _cyclesSub?.cancel();
+    _apptSub?.cancel();
     _model.dispose();
 
     super.dispose();
@@ -86,42 +90,31 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
     }
   }
 
-  /// A phase-aware supportive reply used to simulate the clinician responding.
-  String get _autoReply {
-    switch (_status.phase) {
-      case CyclePhase.menstrual:
-        return 'During your menstrual phase, rest and iron-rich foods help most. Are the cramps manageable today?';
-      case CyclePhase.follicular:
-        return 'Your energy is rising in the follicular phase — a great window for movement. Keep me posted on how you feel.';
-      case CyclePhase.ovulation:
-        return 'You\'re near peak energy around ovulation. Stay hydrated, and tell me if anything feels off.';
-      case CyclePhase.luteal:
-        return 'Bloating is common in the luteal phase. Gentle stretching and magnesium can help — shall I note that for you?';
-    }
-  }
-
   void _sendMessage() {
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null || _appointment == null) return;
     final controller = _model.textFieldModel.inputTextController;
     final text = (controller?.text ?? '').trim();
     if (text.isEmpty) return;
-    safeSetState(() {
-      _extraMessages.add((
-        message: text,
-        time: TimeOfDay.fromDateTime(DateTime.now()).format(context),
-        isSent: true,
-      ));
-      controller?.clear();
-    });
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
-      safeSetState(() {
-        _extraMessages.add((
-          message: _autoReply,
-          time: TimeOfDay.fromDateTime(DateTime.now()).format(context),
-          isSent: false,
-        ));
-      });
-    });
+    controller?.clear();
+    sendChatMessage(uid, _appointment!.id,
+      senderUid: uid,
+      senderName: 'You',
+      content: text,
+    );
+  }
+
+  void _launchVideoCall() async {
+    if (_appointment == null) {
+      _showMessage('No active appointment found.');
+      return;
+    }
+    final url = Uri.parse(jitsiRoomUrl(_appointment!.id));
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      _showMessage('Could not open video call.');
+    }
   }
 
   @override
@@ -195,7 +188,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Dr. Sarah Jenkins',
+                                  _doctorName,
                                   style: FlutterFlowTheme.of(context)
                                       .titleMedium
                                       .override(
@@ -271,12 +264,11 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                             buttonSize: 40.0,
                             fillColor: Colors.transparent,
                             icon: Icon(
-                              Icons.history_rounded,
-                              color: FlutterFlowTheme.of(context).secondary,
+                              Icons.videocam_rounded,
+                              color: FlutterFlowTheme.of(context).primary,
                               size: 24.0,
                             ),
-                            onPressed: () =>
-                                _showMessage('Showing chat history from this session.'),
+                            onPressed: _launchVideoCall,
                           ),
                         ].divide(SizedBox(width: 16.0)),
                       ),
@@ -294,197 +286,63 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
             ),
             Expanded(
               flex: 1,
-              child: Container(
-                child: SingleChildScrollView(
-                  primary: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.all(24.0),
-                        child: Container(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Padding(
-                                padding: EdgeInsetsDirectional.fromSTEB(
-                                    0.0, 0.0, 0.0, 24.0),
-                                child: Container(
-                                  alignment: AlignmentDirectional(0.0, 0.0),
-                                  child: Container(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: FlutterFlowTheme.of(context)
-                                            .divider50,
-                                        borderRadius:
-                                            BorderRadius.circular(9999.0),
-                                        shape: BoxShape.rectangle,
-                                      ),
-                                      child: Padding(
-                                        padding: EdgeInsetsDirectional.fromSTEB(
-                                            16.0, 4.0, 16.0, 4.0),
-                                        child: Container(
-                                          child: Text(
-                                            'Today',
-                                            style: FlutterFlowTheme.of(context)
-                                                .labelSmall
-                                                .override(
-                                                  font: GoogleFonts
-                                                      .plusJakartaSans(
-                                                    fontWeight:
-                                                        FlutterFlowTheme.of(
-                                                                context)
-                                                            .labelSmall
-                                                            .fontWeight,
-                                                    fontStyle:
-                                                        FlutterFlowTheme.of(
-                                                                context)
-                                                            .labelSmall
-                                                            .fontStyle,
-                                                  ),
-                                                  color: FlutterFlowTheme.of(
-                                                          context)
-                                                      .onSurface,
-                                                  letterSpacing: 0.0,
-                                                  fontWeight:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelSmall
-                                                          .fontWeight,
-                                                  fontStyle:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .labelSmall
-                                                          .fontStyle,
-                                                  lineHeight: 1.2,
-                                                ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              wrapWithModel(
-                                model: _model.chatBubbleModel1,
-                                updateCallback: () => safeSetState(() {}),
-                                child: ChatBubbleWidget(
-                                  message:
-                                      'Hello Anna! I\'ve reviewed your symptoms from the log. How are you feeling today?',
-                                  time: '10:30 AM',
-                                  is_sent: false,
-                                ),
-                              ),
-                              wrapWithModel(
-                                model: _model.chatBubbleModel2,
-                                updateCallback: () => safeSetState(() {}),
-                                child: ChatBubbleWidget(
-                                  message:
-                                      'I noticed your energy levels have been moderate. Have you started the Vitamin B complex we discussed?',
-                                  time: '10:31 AM',
-                                  is_sent: false,
-                                ),
-                              ),
-                              wrapWithModel(
-                                model: _model.chatBubbleModel3,
-                                updateCallback: () => safeSetState(() {}),
-                                child: ChatBubbleWidget(
-                                  message:
-                                      'Hi Doctor. Yes, I\'ve been taking them for 3 days now. I still feel a bit bloated though.',
-                                  time: '10:35 AM',
-                                  is_sent: true,
-                                ),
-                              ),
-                              Row(
-                                mainAxisSize: MainAxisSize.max,
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  wrapWithModel(
-                                    model: _model.reportAttachmentModel,
-                                    updateCallback: () => safeSetState(() {}),
-                                    child: ReportAttachmentWidget(
-                                      filename: 'Blood_Work_Oct.pdf',
-                                      size: '1.2 MB',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              wrapWithModel(
-                                model: _model.chatBubbleModel4,
-                                updateCallback: () => safeSetState(() {}),
-                                child: ChatBubbleWidget(
-                                  message:
-                                      'Thank you for the report. The bloating is common in the Luteal phase. Let\'s adjust your evening meditation to include some light stretching.',
-                                  time: '10:40 AM',
-                                  is_sent: false,
-                                ),
-                              ),
-                              ..._extraMessages.map(
-                                (m) => ChatBubbleWidget(
-                                  message: m.message,
-                                  time: m.time,
-                                  is_sent: m.isSent,
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsetsDirectional.fromSTEB(
-                                    0.0, 0.0, 0.0, 16.0),
-                                child: Container(
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.max,
-                                    mainAxisAlignment: MainAxisAlignment.start,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryBackground,
-                                          borderRadius:
-                                              BorderRadius.circular(28.0),
-                                          shape: BoxShape.rectangle,
-                                        ),
-                                        child: Padding(
-                                          padding:
-                                              EdgeInsetsDirectional.fromSTEB(
-                                                  16.0, 8.0, 16.0, 8.0),
-                                          child: Container(
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.max,
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.start,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.center,
-                                              children: [
-                                                Lottie.network(
-                                                  'https://dimg.dreamflow.cloud/v1/lottie/three+dots+loading+animation',
-                                                  width: 40.0,
-                                                  height: 20.0,
-                                                  fit: BoxFit.contain,
-                                                  animate: true,
-                                                ),
-                                              ].divide(SizedBox(width: 4.0)),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ].divide(SizedBox(width: 8.0)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+              child: _appointment == null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.chat_bubble_outline, size: 48, color: FlutterFlowTheme.of(context).secondaryText.withAlpha(100)),
+                            const SizedBox(height: 12),
+                            Text('No active consultation.\nBook a doctor to start chatting.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(fontSize: 14, color: FlutterFlowTheme.of(context).secondaryText)),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
+                    )
+                  : StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: streamChatMessages(
+                          AuthManager.instance.currentUid!, _appointment!.id),
+                      builder: (context, snapshot) {
+                        final messages = snapshot.data ?? [];
+                        if (messages.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.waving_hand_rounded, size: 40, color: FlutterFlowTheme.of(context).primary),
+                                  const SizedBox(height: 12),
+                                  Text('Say hello to $_doctorName!\nYour messages appear here in real time.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(fontSize: 14, color: FlutterFlowTheme.of(context).secondaryText)),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                        return ListView.builder(
+                          padding: const EdgeInsets.all(24),
+                          itemCount: messages.length,
+                          itemBuilder: (context, i) {
+                            final msg = messages[i];
+                            final isSent = msg['senderUid'] == AuthManager.instance.currentUid;
+                            final sentAt = (msg['sentAt'] as Timestamp?)?.toDate();
+                            final timeStr = sentAt != null
+                                ? TimeOfDay.fromDateTime(sentAt).format(context)
+                                : '';
+                            return ChatBubbleWidget(
+                              message: msg['content'] as String? ?? '',
+                              time: timeStr,
+                              is_sent: isSent,
+                            );
+                          },
+                        );
+                      },
+                    ),
             ),
             Container(
               decoration: BoxDecoration(

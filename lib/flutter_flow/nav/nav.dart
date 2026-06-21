@@ -155,6 +155,13 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           path: MoodJournalWidget.routePath,
           builder: (context, params) => MoodJournalWidget(),
         ),
+        FFRoute(
+          name: MeditationGuideWidget.routeName,
+          path: MeditationGuideWidget.routePath,
+          builder: (context, params) => MeditationGuideWidget(
+            contentId: params.getParam('contentId', ParamType.String) as String?,
+          ),
+        ),
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );
 

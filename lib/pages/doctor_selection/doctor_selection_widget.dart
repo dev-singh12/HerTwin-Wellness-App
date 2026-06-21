@@ -188,11 +188,9 @@ class _DoctorSelectionWidgetState extends State<DoctorSelectionWidget> {
                   if (isFree)
                     _ConsultTypeCard(icon: Icons.chat_bubble_outline, label: 'Free Chat Consultation', subtitle: '15-30 min', price: 'FREE', selected: true, onTap: () {})
                   else ...[
-                    _ConsultTypeCard(icon: Icons.chat_bubble_outline, label: 'Chat Consultation', subtitle: '15-30 min', price: '\u{20B9}200', selected: selectedType == 'chat', onTap: () => setSheetState(() => selectedType = 'chat')),
+                    _ConsultTypeCard(icon: Icons.chat_bubble_outline, label: 'Chat Consultation', subtitle: '15-30 min real-time chat', price: '\u{20B9}300', selected: selectedType == 'chat', onTap: () => setSheetState(() => selectedType = 'chat')),
                     const SizedBox(height: 8),
-                    _ConsultTypeCard(icon: Icons.phone_outlined, label: 'Phone Call', subtitle: '15-30 min', price: '\u{20B9}300', selected: selectedType == 'call', onTap: () => setSheetState(() => selectedType = 'call')),
-                    const SizedBox(height: 8),
-                    _ConsultTypeCard(icon: Icons.videocam_outlined, label: 'Video Call', subtitle: '30 min', price: '\u{20B9}500', selected: selectedType == 'video', onTap: () => setSheetState(() => selectedType = 'video')),
+                    _ConsultTypeCard(icon: Icons.videocam_outlined, label: 'Video Call', subtitle: '30 min video consultation', price: '\u{20B9}500', selected: selectedType == 'video', onTap: () => setSheetState(() => selectedType = 'video')),
                   ],
                   const SizedBox(height: 20),
                   // Date selection

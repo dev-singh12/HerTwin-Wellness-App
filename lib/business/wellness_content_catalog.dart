@@ -66,7 +66,7 @@ class WellnessContentCatalog {
     String? condition,
     CyclePhase? phase,
   }) {
-    var items = [...yogaContents, ...mindfulnessContents];
+    var items = [...yogaContents, ...mindfulnessContents, ...meditationContents];
     if (phase != null) {
       final phaseStr = phase.name;
       final matched = items.where((i) => i.phase == phaseStr).toList();
@@ -206,7 +206,93 @@ class WellnessContentCatalog {
         PoseEntry(emoji: '\u{1F33F}', name: 'Body Scan Savasana', durationSecs: 120),
       ],
     ),
-  ];
+    WellnessContent(
+      id: 'yoga_thyroid_balance',
+      title: 'Thyroid Balance Flow',
+      category: 'yoga',
+      durationMins: 18,
+      description: 'Stimulate the thyroid gland with targeted neck stretches and gentle inversions. Supports hormonal regulation for irregular cycles.',
+      conditions: ['irregular'],
+      difficulty: 'Beginner',
+      poses: [
+        PoseEntry(emoji: '\u{1F9D8}', name: 'Neck Rolls', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F98B}', name: 'Fish Pose', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F408}', name: 'Cat-Cow', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F4AA}', name: 'Shoulder Stand Prep', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Savasana', durationSecs: 90),
+      ],
+    ),
+    WellnessContent(
+      id: 'yoga_hip_opener',
+      title: 'Deep Hip Opener',
+      category: 'yoga',
+      durationMins: 20,
+      description: 'Release stored tension and emotions through deep hip-opening poses. Perfect for any cycle phase.',
+      difficulty: 'Intermediate',
+      poses: [
+        PoseEntry(emoji: '\u{1F9D8}', name: 'Pigeon Pose (Right)', durationSecs: 90),
+        PoseEntry(emoji: '\u{1F9D8}', name: 'Pigeon Pose (Left)', durationSecs: 90),
+        PoseEntry(emoji: '\u{1F98B}', name: 'Lizard Pose', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F30A}', name: 'Frog Pose', durationSecs: 90),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Savasana', durationSecs: 90),
+      ],
+    ),
+    WellnessContent(
+      id: 'yoga_desk_reset',
+      title: 'Desk Break Reset',
+      category: 'yoga',
+      durationMins: 8,
+      description: 'Quick standing and seated stretches you can do at your desk. Relieves neck, shoulder, and wrist tension.',
+      difficulty: 'Beginner',
+      poses: [
+        PoseEntry(emoji: '\u{1F4AA}', name: 'Seated Neck Stretch', durationSecs: 45),
+        PoseEntry(emoji: '\u{1F9D8}', name: 'Eagle Arms', durationSecs: 45),
+        PoseEntry(emoji: '\u{1F938}', name: 'Seated Twist', durationSecs: 45),
+        PoseEntry(emoji: '\u{1F30A}', name: 'Wrist Circles', durationSecs: 30),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Standing Forward Fold', durationSecs: 45),
+      ],
+    ),
+    WellnessContent(
+      id: 'yoga_cortisol_reset',
+      title: 'Cortisol Reset Flow',
+      category: 'yoga',
+      durationMins: 15,
+      description: 'Calm your nervous system and lower cortisol with this grounding sequence. Ideal for stressful days.',
+      conditions: ['pcos', 'pcod', 'pmdd'],
+      difficulty: 'Beginner',
+      poses: [
+        PoseEntry(emoji: '\u{1F9D8}', name: 'Child\'s Pose', durationSecs: 90),
+        PoseEntry(emoji: '\u{1F408}', name: 'Cat-Cow', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F6CC}', name: 'Supported Bridge', durationSecs: 90),
+        PoseEntry(emoji: '\u{1F938}', name: 'Reclined Twist', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Legs-Up-The-Wall', durationSecs: 120),
+      ],
+    ),    WellnessContent(
+      id: 'yoga_cycle_regularity_30',
+      title: 'Cycle Regularity \u2014 30 Min Daily',
+      category: 'yoga',
+      durationMins: 30,
+      description: 'Evidence-based 30-minute daily routine to regulate irregular periods. '
+          '5 poses targeting pelvic blood flow, hormonal balance, and stress reduction. '
+          'Each pose is held for 5 minutes with 1-minute rest between. '
+          'Based on research from Journal of Alternative & Complementary Medicine.',
+      conditions: ['irregular', 'pcos', 'pcod'],
+      difficulty: 'Beginner',
+      gradientColors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
+      icon: Icons.timer,
+      poses: [
+        PoseEntry(emoji: '\\u{1F9D8}', name: 'Baddha Konasana (Butterfly Pose) \u2014 Opens hips, stimulates ovaries & uterus. Sit tall, soles together, gently press knees down. Breathe deeply.', durationSecs: 300),
+        PoseEntry(emoji: '\\u{23F8}', name: 'Rest \u2014 Lie flat, breathe normally', durationSecs: 60),
+        PoseEntry(emoji: '\\u{1F9D8}', name: 'Supta Baddha Konasana (Reclined Butterfly) \u2014 Releases pelvic tension, calms nervous system. Lie back with soles together, arms relaxed.', durationSecs: 300),
+        PoseEntry(emoji: '\\u{23F8}', name: 'Rest \u2014 Gentle side roll, breathe', durationSecs: 60),
+        PoseEntry(emoji: '\\u{1F9D8}', name: 'Setu Bandhasana (Bridge Pose) \u2014 Stimulates thyroid & reproductive organs. Lift hips, press feet down, squeeze glutes gently. Hold steady.', durationSecs: 300),
+        PoseEntry(emoji: '\\u{23F8}', name: 'Rest \u2014 Hug knees to chest gently', durationSecs: 60),
+        PoseEntry(emoji: '\\u{1F9D8}', name: 'Viparita Karani (Legs-Up-The-Wall) \u2014 Improves blood flow to pelvis, regulates hormones, reduces cortisol. Lie with legs elevated against wall.', durationSecs: 300),
+        PoseEntry(emoji: '\\u{23F8}', name: 'Rest \u2014 Lower legs slowly, breathe', durationSecs: 60),
+        PoseEntry(emoji: '\\u{1F9D8}', name: 'Bhujangasana (Cobra Pose) \u2014 Massages reproductive organs, strengthens back, balances hormones. Lie prone, lift chest with arms, keep hips grounded.', durationSecs: 300),
+        PoseEntry(emoji: '\\u{23F8}', name: 'Savasana \u2014 Final rest. Lie completely still for 1 minute. Observe your body.', durationSecs: 60),
+      ],
+    ),  ];
 
   static const mindfulnessContents = [
     WellnessContent(
@@ -232,6 +318,73 @@ class WellnessContentCatalog {
       durationMins: 5,
       description: 'Write freely about your day. Tracking your mood patterns helps you understand your cycle better.',
       icon: Icons.edit_note,
+    ),
+  ];
+
+  static const meditationContents = [
+    WellnessContent(
+      id: 'meditation_pmr',
+      title: 'Progressive Muscle Relaxation',
+      category: 'meditation',
+      durationMins: 15,
+      description: 'Systematically tense and release each muscle group to melt away physical and emotional tension.',
+      icon: Icons.accessibility_new,
+      poses: [
+        PoseEntry(emoji: '\u{1F9E0}', name: 'Face & Jaw \u2014 Scrunch tight, then release', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F4AA}', name: 'Shoulders & Neck \u2014 Shrug up to ears, drop', durationSecs: 60),
+        PoseEntry(emoji: '\u{270B}', name: 'Hands & Arms \u2014 Make fists, squeeze, relax', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F9D8}', name: 'Core & Back \u2014 Tighten abs, arch gently', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F9B6}', name: 'Legs & Feet \u2014 Point toes, curl, release', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Full Body \u2014 Notice the calm', durationSecs: 120),
+      ],
+    ),
+    WellnessContent(
+      id: 'meditation_loving_kindness',
+      title: 'Loving-Kindness Meditation',
+      category: 'meditation',
+      durationMins: 10,
+      description: 'Cultivate compassion for yourself and others. Especially helpful during the luteal phase when self-criticism peaks.',
+      conditions: ['pms', 'pmdd'],
+      phase: 'luteal',
+      icon: Icons.favorite,
+      poses: [
+        PoseEntry(emoji: '\u{1F49C}', name: 'Send kindness to yourself', durationSecs: 90),
+        PoseEntry(emoji: '\u{1F49B}', name: 'Send kindness to a loved one', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F49A}', name: 'Send kindness to a neutral person', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F90D}', name: 'Send kindness to all beings', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Rest in awareness', durationSecs: 90),
+      ],
+    ),
+    WellnessContent(
+      id: 'meditation_yoga_nidra',
+      title: 'Sleep Yoga Nidra',
+      category: 'meditation',
+      durationMins: 20,
+      description: 'Deep guided relaxation for restorative sleep. Lie down comfortably and follow each instruction.',
+      icon: Icons.bedtime,
+      poses: [
+        PoseEntry(emoji: '\u{1F6CC}', name: 'Settle in \u2014 Find a comfortable position', durationSecs: 90),
+        PoseEntry(emoji: '\u{1F4AD}', name: 'Set your intention (Sankalpa)', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F9E0}', name: 'Rotate awareness through the body', durationSecs: 180),
+        PoseEntry(emoji: '\u{1F30A}', name: 'Feel the breath like gentle waves', durationSecs: 120),
+        PoseEntry(emoji: '\u{2728}', name: 'Visualise a peaceful place', durationSecs: 120),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Slowly return to wakefulness', durationSecs: 90),
+      ],
+    ),
+    WellnessContent(
+      id: 'meditation_gratitude',
+      title: 'Gratitude Meditation',
+      category: 'meditation',
+      durationMins: 8,
+      description: 'Shift your mindset by focusing on what you appreciate. Boosts mood and reduces anxiety naturally.',
+      icon: Icons.wb_sunny,
+      poses: [
+        PoseEntry(emoji: '\u{1F9D8}', name: 'Centre yourself with 3 deep breaths', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F49B}', name: 'Think of something your body does for you', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F49C}', name: 'Think of someone who supports you', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F31F}', name: 'Think of a small joy from today', durationSecs: 60),
+        PoseEntry(emoji: '\u{1F33F}', name: 'Sit with the feeling of gratitude', durationSecs: 90),
+      ],
     ),
   ];
 
@@ -478,6 +631,91 @@ What You Can Do:
 5. Seek professional help if mood disruptions are severe
 
 Remember: Feeling different across your cycle is NORMAL. You are not broken.''',
+    ),
+    WellnessArticle(
+      id: 'art_endometriosis',
+      title: 'Understanding Endometriosis',
+      readMins: 8,
+      category: 'guides',
+      excerptText: 'Endometriosis affects 1 in 10 women. Understanding the condition is the first step to managing it...',
+      fullText: '''Endometriosis affects 1 in 10 women of reproductive age. It occurs when tissue similar to the uterine lining grows outside the uterus.
+
+Common Symptoms:
+- Severe period pain that worsens over time
+- Pain during or after sex
+- Heavy periods or bleeding between periods
+- Fatigue that doesn't improve with rest
+- Digestive issues (bloating, nausea, constipation)
+- Difficulty getting pregnant
+
+Getting Diagnosed:
+- Average diagnosis takes 7-10 years
+- Track your symptoms in detail (this app helps!)
+- Ultrasound can detect some forms
+- Laparoscopy is the gold standard for diagnosis
+
+Management Options:
+1. Pain management (NSAIDs, heat therapy)
+2. Hormonal treatments (birth control, GnRH agonists)
+3. Surgery (laparoscopic excision)
+4. Diet: Anti-inflammatory foods, reduce gluten and dairy
+5. Exercise: Gentle movement reduces pain and inflammation
+6. Stress management: Crucial, as stress worsens symptoms''',
+    ),
+    WellnessArticle(
+      id: 'art_hormonal_acne',
+      title: 'Hormonal Acne: A Cycle-Based Approach',
+      readMins: 6,
+      category: 'guides',
+      conditions: ['pcos', 'pcod'],
+      excerptText: 'Breakouts that follow your menstrual cycle are driven by hormones, not hygiene...',
+      fullText: '''Breakouts that follow your menstrual cycle are driven by hormones, not hygiene. Understanding when and why they happen gives you power to prevent them.
+
+The Hormonal Acne Pattern:
+- Follicular phase: Skin clears as estrogen rises
+- Ovulation: Estrogen peaks \u2014 your best skin days
+- Luteal phase: Progesterone rises, increases oil production
+- Pre-period: Testosterone ratio increases \u2014 breakout zone
+
+Cycle-Synced Skincare:
+- Follicular: Gentle exfoliation (AHA/BHA 2x/week)
+- Ovulation: Minimal routine, skin is at its best
+- Luteal: Oil-free moisturiser, niacinamide, salicylic acid
+- Pre-period: Spot treat, avoid touching face, clean pillowcases
+
+Diet for Clear Skin:
+- Reduce dairy and refined sugar
+- Zinc-rich foods (pumpkin seeds, chickpeas)
+- Omega-3 fatty acids (salmon, walnuts)
+- Green tea (anti-androgenic properties)
+
+For PCOS: Elevated androgens are a root cause. Address insulin resistance to reduce hormonal acne at its source.''',
+    ),
+    WellnessArticle(
+      id: 'art_fertility_awareness',
+      title: 'Fertility Awareness Method Explained',
+      readMins: 7,
+      category: 'guides',
+      excerptText: 'Understanding your fertility signs helps you plan or prevent pregnancy naturally...',
+      fullText: '''Understanding your fertility signs helps you plan or prevent pregnancy naturally. The Fertility Awareness Method (FAM) uses observable body signs to identify your fertile window.
+
+The Three Key Signs:
+1. Basal Body Temperature (BBT): Temperature rises 0.2-0.5\u00b0C after ovulation and stays elevated until your period
+2. Cervical Mucus: Changes from dry/sticky to wet/egg-white consistency near ovulation
+3. Cervical Position: Shifts from low/firm to high/soft around ovulation
+
+The Fertile Window:
+- Sperm can survive up to 5 days in fertile mucus
+- The egg lives 12-24 hours after ovulation
+- Your fertile window is approximately 6 days per cycle
+
+Getting Started:
+1. Track your cycle for 3+ months before relying on FAM
+2. Take BBT every morning before getting out of bed
+3. Check cervical mucus daily
+4. Use this app to log symptoms and identify patterns
+
+Important: FAM requires consistency and education. Consider working with a certified instructor. It is NOT recommended as sole contraception without proper training.''',
     ),
   ];
 }

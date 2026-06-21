@@ -37,10 +37,16 @@ class _InsightsWidgetState extends State<InsightsWidget> {
   StreamSubscription<List<CyclesRecord>>? _cyclesSub;
   StreamSubscription<List<MoodsRecord>>? _moodsSub;
   StreamSubscription<List<SymptomsRecord>>? _symptomsSub;
+  StreamSubscription<List<HealthHabitRecord>>? _habitsSub;
+  StreamSubscription<List<HabitLogRecord>>? _habitLogsSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _scoreLogsSub;
 
   List<CyclesRecord> _cycles = const [];
   List<MoodsRecord> _moods = const [];
   List<SymptomsRecord> _symptoms = const [];
+  List<HealthHabitRecord> _habits = const [];
+  List<HabitLogRecord> _habitLogs = const [];
+  List<Map<String, dynamic>> _scoreLogs = const [];
   CycleStatus _status = CycleEngine.compute(const []);
 
   static const _moodMeta = <String, String>{
@@ -72,6 +78,15 @@ class _InsightsWidgetState extends State<InsightsWidget> {
       _symptomsSub = streamSymptoms(uid).listen((s) {
         if (mounted) safeSetState(() => _symptoms = s);
       });
+      _habitsSub = streamHabits(uid).listen((h) {
+        if (mounted) safeSetState(() => _habits = h);
+      });
+      _habitLogsSub = streamRecentHabitLogs(uid, 14).listen((logs) {
+        if (mounted) safeSetState(() => _habitLogs = logs);
+      });
+      _scoreLogsSub = streamScoreLogs(uid, 14).listen((logs) {
+        if (mounted) safeSetState(() => _scoreLogs = logs);
+      });
     }
   }
 
@@ -80,6 +95,9 @@ class _InsightsWidgetState extends State<InsightsWidget> {
     _cyclesSub?.cancel();
     _moodsSub?.cancel();
     _symptomsSub?.cancel();
+    _habitsSub?.cancel();
+    _habitLogsSub?.cancel();
+    _scoreLogsSub?.cancel();
     _model.dispose();
     super.dispose();
   }
@@ -202,6 +220,75 @@ class _InsightsWidgetState extends State<InsightsWidget> {
     }).toList();
   }
 
+  // ---- symptom severity trend (weekly) -----------------------------------
+
+  /// Returns up to 8 weeks of (weekLabel, avgSeverity) pairs, oldest first.
+  List<({String label, double avg, int count})> _weeklySeverity() {
+    final now = DateTime.now();
+    final weekBuckets = <int, List<int>>{};
+    for (final s in _symptoms) {
+      if (s.date == null || s.severity == null) continue;
+      final weeksAgo = now.difference(s.date!).inDays ~/ 7;
+      if (weeksAgo > 7) continue;
+      weekBuckets.putIfAbsent(weeksAgo, () => []).add(s.severity!);
+    }
+    final results = <({String label, double avg, int count})>[];
+    for (var w = 7; w >= 0; w--) {
+      final list = weekBuckets[w];
+      if (list == null || list.isEmpty) {
+        results.add((label: w == 0 ? 'Now' : '${w}w', avg: 0, count: 0));
+      } else {
+        final avg = list.reduce((a, b) => a + b) / list.length;
+        results.add((label: w == 0 ? 'Now' : '${w}w', avg: avg, count: list.length));
+      }
+    }
+    return results;
+  }
+
+  // ---- habit completion (last 7 days) ------------------------------------
+
+  List<({String title, int completed, int target})> _habitCompletion() {
+    if (_habits.isEmpty) return [];
+    final now = DateTime.now();
+    final last7 = <String>{};
+    for (var i = 0; i < 7; i++) {
+      last7.add(DateFormat('yyyy-MM-dd').format(now.subtract(Duration(days: i))));
+    }
+    final logsInRange = _habitLogs.where((l) => last7.contains(l.date)).toList();
+
+    return _habits.map((h) {
+      var done = 0;
+      for (final log in logsInRange) {
+        if (log.completedHabits[h.id] == true) done++;
+      }
+      return (title: h.title, completed: done, target: 7);
+    }).toList();
+  }
+
+  int get _overallHabitPct {
+    final items = _habitCompletion();
+    if (items.isEmpty) return 0;
+    final totalDone = items.fold<int>(0, (a, b) => a + b.completed);
+    final totalTarget = items.fold<int>(0, (a, b) => a + b.target);
+    if (totalTarget == 0) return 0;
+    return ((totalDone / totalTarget) * 100).round();
+  }
+
+  // ---- vitality score trend ---------------------------------------------
+
+  /// Returns (date label, score) pairs sorted oldest-first from score_logs.
+  List<({String label, int score})> _scoreTrend() {
+    if (_scoreLogs.isEmpty) return [];
+    final sorted = [..._scoreLogs]
+      ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
+    return sorted.map((m) {
+      final date = m['date'] as String? ?? '';
+      final short = date.length >= 5 ? date.substring(5) : date; // MM-DD
+      final score = (m['score'] as num?)?.toInt() ?? 0;
+      return (label: short, score: score);
+    }).toList();
+  }
+
   // ---- UI ---------------------------------------------------------------
 
   @override
@@ -210,6 +297,9 @@ class _InsightsWidgetState extends State<InsightsWidget> {
     final trend = _cycleTrend;
     final moods = _moodDistribution(theme);
     final symptoms = _topSymptoms(theme);
+    final severity = _weeklySeverity();
+    final habitItems = _habitCompletion();
+    final scores = _scoreTrend();
 
     return Scaffold(
       key: scaffoldKey,
@@ -371,6 +461,44 @@ class _InsightsWidgetState extends State<InsightsWidget> {
                           children: _distRows(theme, symptoms),
                         ),
                 ),
+                const SizedBox(height: 16.0),
+
+                // Symptom severity trend
+                _sectionCard(
+                  theme,
+                  title: 'Symptom Severity Trend',
+                  subtitle: 'Average severity by week (1-5 scale)',
+                  child: severity.every((s) => s.count == 0)
+                      ? _emptyState(theme,
+                          'Log symptoms with severity ratings to see your weekly trend.')
+                      : _buildSeverityChart(theme, severity),
+                ),
+                const SizedBox(height: 16.0),
+
+                // Habit completion
+                _sectionCard(
+                  theme,
+                  title: 'Habit Completion',
+                  subtitle: 'Last 7 days \u{2022} $_overallHabitPct% overall',
+                  child: habitItems.isEmpty
+                      ? _emptyState(theme,
+                          'Set up health habits from onboarding to track your daily progress here.')
+                      : Column(
+                          children: habitItems.map((h) => _habitRow(theme, h)).toList(),
+                        ),
+                ),
+                const SizedBox(height: 16.0),
+
+                // Health Vitality Score trend
+                _sectionCard(
+                  theme,
+                  title: 'Health Vitality Score',
+                  subtitle: 'Your wellness score over the last 14 days',
+                  child: scores.isEmpty
+                      ? _emptyState(theme,
+                          'Log symptoms and complete habits to generate your vitality score trend.')
+                      : _buildScoreChart(theme, scores),
+                ),
               ],
             ),
           ),
@@ -518,4 +646,149 @@ class _InsightsWidgetState extends State<InsightsWidget> {
           ],
         ),
       );
+
+  Widget _buildSeverityChart(FlutterFlowTheme theme,
+      List<({String label, double avg, int count})> data) {
+    return SizedBox(
+      height: 160,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: data.map((d) {
+          final barHeight = d.avg > 0 ? (d.avg / 5.0) * 120.0 : 0.0;
+          final color = d.avg == 0
+              ? theme.alternate
+              : d.avg <= 2
+                  ? theme.success
+                  : d.avg <= 3.5
+                      ? theme.warning
+                      : theme.error;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (d.avg > 0)
+                    Text(
+                      d.avg.toStringAsFixed(1),
+                      style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: color),
+                    ),
+                  const SizedBox(height: 4),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    height: barHeight,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(d.label,
+                      style: GoogleFonts.inter(
+                          fontSize: 10, color: theme.secondaryText)),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _habitRow(FlutterFlowTheme theme,
+      ({String title, int completed, int target}) h) {
+    final pct = h.target == 0 ? 0.0 : h.completed / h.target;
+    final color = pct >= 0.8
+        ? theme.success
+        : pct >= 0.4
+            ? theme.warning
+            : theme.error;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  h.title,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13, fontWeight: FontWeight.w500, color: theme.primaryText),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                '${h.completed}/${h.target} days',
+                style: GoogleFonts.inter(
+                    fontSize: 12, fontWeight: FontWeight.w600, color: color),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: pct.clamp(0.0, 1.0),
+              minHeight: 8,
+              backgroundColor: theme.alternate,
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreChart(FlutterFlowTheme theme,
+      List<({String label, int score})> data) {
+    return SizedBox(
+      height: 160,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: data.map((d) {
+          final barHeight = (d.score / 100.0) * 120.0;
+          final color = d.score >= 70
+              ? theme.success
+              : d.score >= 40
+                  ? theme.warning
+                  : theme.error;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    '${d.score}',
+                    style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: color),
+                  ),
+                  const SizedBox(height: 3),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    height: barHeight,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(d.label,
+                      style: GoogleFonts.inter(
+                          fontSize: 8, color: theme.secondaryText)),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 }

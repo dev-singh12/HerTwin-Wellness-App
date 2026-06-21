@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
 import '/business/cycle_engine.dart';
@@ -42,15 +44,24 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
   final Set<String> _selectedSymptoms = {};
   String? _flow;
   bool _saving = false;
+  CycleStatus _status = CycleEngine.compute(const []);
+  StreamSubscription<List<CyclesRecord>>? _cyclesSub;
 
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => LogSymptomsModalModel());
+    final uid = AuthManager.instance.currentUid;
+    if (uid != null) {
+      _cyclesSub = streamCycles(uid).listen((c) {
+        if (mounted) safeSetState(() => _status = CycleEngine.compute(c));
+      });
+    }
   }
 
   @override
   void dispose() {
+    _cyclesSub?.cancel();
     _model.dispose();
 
     super.dispose();
@@ -174,6 +185,20 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
       if (_flow != null) {
         await _logPeriodFlow(uid, now);
       }
+
+      // Auto-update health vitality score + last log date
+      final moodScore = _selectedMood != null ? _moodMap[_selectedMood]!.$2 : 3;
+      final symptomPenalty = (_selectedSymptoms.length * 3).clamp(0, 30);
+      final vitalityDelta = moodScore * 5 - symptomPenalty;
+      final user = await getUser(uid);
+      final oldScore = user?.healthVitalityScore ?? 50;
+      final newScore = (oldScore + vitalityDelta).clamp(0, 100);
+      await updateUser(uid, {
+        'healthVitalityScore': newScore,
+        'lastLogDate': now.toIso8601String(),
+      });
+      final todayStr = DateFormat('yyyy-MM-dd').format(now);
+      await saveScoreLog(uid, todayStr, newScore);
       if (!mounted) return;
       _showMessage('Daily log saved.');
       context.safePop();
@@ -321,6 +346,46 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                   mainAxisAlignment: MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Phase indicator
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              FlutterFlowTheme.of(context).primary.withAlpha(20),
+                              FlutterFlowTheme.of(context).secondary.withAlpha(20),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today_rounded,
+                                size: 18, color: FlutterFlowTheme.of(context).primary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '${_status.phase.label} \u{2022} Day ${_status.cycleDay} of ${_status.cycleLength}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: FlutterFlowTheme.of(context).primaryText,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _status.phase.energyLevel,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: FlutterFlowTheme.of(context).secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                     Padding(
                       padding: EdgeInsets.all(24.0),
                       child: Container(

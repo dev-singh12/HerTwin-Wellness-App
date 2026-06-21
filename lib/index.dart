@@ -28,3 +28,5 @@ export '/pages/article_detail/article_detail_widget.dart'
 export '/pages/breathwork_guide/breathwork_guide_widget.dart'
     show BreathworkGuideWidget;
 export '/pages/mood_journal/mood_journal_widget.dart' show MoodJournalWidget;
+export '/pages/meditation_guide/meditation_guide_widget.dart'
+    show MeditationGuideWidget;

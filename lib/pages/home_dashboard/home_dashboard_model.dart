@@ -1,6 +1,5 @@
 import '/components/button/button_widget.dart';
 import '/components/calendar_pill/calendar_pill_widget.dart';
-import '/components/ritual_tile/ritual_tile_widget.dart';
 import '/components/status_card/status_card_widget.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'home_dashboard_widget.dart' show HomeDashboardWidget;
@@ -29,12 +28,6 @@ class HomeDashboardModel extends FlutterFlowModel<HomeDashboardWidget> {
   late StatusCardModel statusCardModel2;
   // Model for Button.
   late ButtonModel buttonModel;
-  // Model for RitualTile.
-  late RitualTileModel ritualTileModel1;
-  // Model for RitualTile.
-  late RitualTileModel ritualTileModel2;
-  // Model for RitualTile.
-  late RitualTileModel ritualTileModel3;
 
   @override
   void initState(BuildContext context) {
@@ -48,9 +41,6 @@ class HomeDashboardModel extends FlutterFlowModel<HomeDashboardWidget> {
     statusCardModel1 = createModel(context, () => StatusCardModel());
     statusCardModel2 = createModel(context, () => StatusCardModel());
     buttonModel = createModel(context, () => ButtonModel());
-    ritualTileModel1 = createModel(context, () => RitualTileModel());
-    ritualTileModel2 = createModel(context, () => RitualTileModel());
-    ritualTileModel3 = createModel(context, () => RitualTileModel());
   }
 
   @override
@@ -65,8 +55,5 @@ class HomeDashboardModel extends FlutterFlowModel<HomeDashboardWidget> {
     statusCardModel1.dispose();
     statusCardModel2.dispose();
     buttonModel.dispose();
-    ritualTileModel1.dispose();
-    ritualTileModel2.dispose();
-    ritualTileModel3.dispose();
   }
 }

@@ -80,16 +80,16 @@ class _MoodJournalWidgetState extends State<MoodJournalWidget> with SingleTicker
   static const _moodLabels = ['Sad', 'Low', 'Okay', 'Good', 'Great'];
 
   static const _blogs = <_Blog>[
-    _Blog('Understanding PCOS: Symptoms & Management', 'Healthline', 'https://www.healthline.com/health/polycystic-ovary-disease', '\u{1F33F}', Color(0xFFE8F5E9)),
-    _Blog('PMS vs PMDD: Know the Difference', 'Cleveland Clinic', 'https://my.clevelandclinic.org/health/articles/9536-premenstrual-dysphoric-disorder-pmdd', '\u{1F4D6}', Color(0xFFF3E5F5)),
-    _Blog('Best Foods for Hormonal Balance', 'Medical News Today', 'https://www.medicalnewstoday.com/articles/324839', '\u{1F957}', Color(0xFFFFF3E0)),
-    _Blog('Yoga Poses for Menstrual Cramps', 'Yoga Journal', 'https://www.yogajournal.com/poses/yoga-for-menstrual-cramps/', '\u{1F9D8}', Color(0xFFE1F5FE)),
-    _Blog('How Stress Affects Your Period', 'Flo Health', 'https://flo.health/menstrual-cycle/health/period/can-stress-delay-your-period', '\u{1F9E0}', Color(0xFFFCE4EC)),
-    _Blog('Inositol for PCOS: The Science', 'Verywell Health', 'https://www.verywellhealth.com/inositol-for-pcos-info-2616286', '\u{1F48A}', Color(0xFFE8EAF6)),
-    _Blog('Seed Cycling: Does It Work?', 'Healthline', 'https://www.healthline.com/nutrition/seed-cycling', '\u{1F331}', Color(0xFFE8F5E9)),
-    _Blog('Managing PMDD: A Complete Guide', 'IAPMD', 'https://iapmd.org/about-pmdd', '\u{1FA7A}', Color(0xFFF3E5F5)),
-    _Blog('Iron-Rich Foods for Heavy Periods', 'BBC Good Food', 'https://www.bbcgoodfood.com/howto/guide/best-iron-rich-foods', '\u{1F4AA}', Color(0xFFFFF3E0)),
-    _Blog('Meditation for Anxiety & Hormones', 'Headspace', 'https://www.headspace.com/meditation/anxiety', '\u{1F54A}\uFE0F', Color(0xFFE1F5FE)),
+    _Blog('Understanding PCOS: Symptoms & Management', 'Healthline', 'https://www.healthline.com/health/polycystic-ovary-disease', Icons.medical_information_outlined, Color(0xFFE8F5E9)),
+    _Blog('PMS vs PMDD: Know the Difference', 'Cleveland Clinic', 'https://my.clevelandclinic.org/health/articles/9536-premenstrual-dysphoric-disorder-pmdd', Icons.menu_book_rounded, Color(0xFFF3E5F5)),
+    _Blog('Best Foods for Hormonal Balance', 'Medical News Today', 'https://www.medicalnewstoday.com/articles/324839', Icons.restaurant_outlined, Color(0xFFFFF3E0)),
+    _Blog('Yoga Poses for Menstrual Cramps', 'Yoga Journal', 'https://www.yogajournal.com/poses/yoga-for-menstrual-cramps/', Icons.self_improvement_rounded, Color(0xFFE1F5FE)),
+    _Blog('How Stress Affects Your Period', 'Flo Health', 'https://flo.health/menstrual-cycle/health/period/can-stress-delay-your-period', Icons.psychology_outlined, Color(0xFFFCE4EC)),
+    _Blog('Inositol for PCOS: The Science', 'Verywell Health', 'https://www.verywellhealth.com/inositol-for-pcos-info-2616286', Icons.science_outlined, Color(0xFFE8EAF6)),
+    _Blog('Seed Cycling: Does It Work?', 'Healthline', 'https://www.healthline.com/nutrition/seed-cycling', Icons.eco_outlined, Color(0xFFE8F5E9)),
+    _Blog('Managing PMDD: A Complete Guide', 'IAPMD', 'https://iapmd.org/about-pmdd', Icons.health_and_safety_outlined, Color(0xFFF3E5F5)),
+    _Blog('Iron-Rich Foods for Heavy Periods', 'BBC Good Food', 'https://www.bbcgoodfood.com/howto/guide/best-iron-rich-foods', Icons.local_dining_outlined, Color(0xFFFFF3E0)),
+    _Blog('Meditation for Anxiety & Hormones', 'Headspace', 'https://www.headspace.com/meditation/anxiety', Icons.spa_outlined, Color(0xFFE1F5FE)),
   ];
 
   @override
@@ -194,7 +194,7 @@ class _MoodJournalWidgetState extends State<MoodJournalWidget> with SingleTicker
           borderRadius: BorderRadius.circular(16),
           child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: b.color, borderRadius: BorderRadius.circular(16)),
             child: Row(children: [
-              Text(b.emoji, style: const TextStyle(fontSize: 32)),
+              Icon(b.icon, size: 28, color: FlutterFlowTheme.of(context).onSurface),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(b.title, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: theme.primaryText), maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -211,7 +211,8 @@ class _MoodJournalWidgetState extends State<MoodJournalWidget> with SingleTicker
 }
 
 class _Blog {
-  const _Blog(this.title, this.source, this.url, this.emoji, this.color);
-  final String title, source, url, emoji;
+  const _Blog(this.title, this.source, this.url, this.icon, this.color);
+  final String title, source, url;
+  final IconData icon;
   final Color color;
 }
