@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -438,6 +439,112 @@ Future<void> addComment(String postId, CommentsRecord comment) {
 }
 
 // ---------------------------------------------------------------------------
+// Community moderation — reporting and blocking.
+//
+// Google Play requires any app carrying user-generated content to offer
+// in-app reporting AND blocking. Both are policy requirements, not features.
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> get reportsCollection =>
+    _db.collection('reports');
+
+/// Files a moderation report. Reports are write-only from the client: a user
+/// can create one but cannot read, edit or delete anyone's — including their
+/// own — so the queue cannot be inspected or tampered with from the app.
+Future<void> reportContent({
+  required String reporterUid,
+  required String contentType,
+  required String contentId,
+  required String reason,
+  String? authorUid,
+}) =>
+    reportsCollection.doc().set({
+      'reporterUid': reporterUid,
+      'contentType': contentType,
+      'contentId': contentId,
+      'authorUid': authorUid ?? '',
+      'reason': reason,
+      'status': 'open',
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+    });
+
+CollectionReference<Map<String, dynamic>> blockedCollection(String uid) =>
+    userRef(uid).collection('blocked');
+
+/// Live set of uids [uid] has blocked. Filtering happens client-side: hiding
+/// a blocked author's posts must not require a rule that would let one user
+/// suppress another's content for everybody.
+Stream<Set<String>> streamBlockedUids(String uid) => blockedCollection(uid)
+    .snapshots()
+    .map((s) => s.docs.map((d) => d.id).toSet());
+
+Future<void> blockUser(String uid, String blockedUid) =>
+    blockedCollection(uid).doc(blockedUid).set({
+      'blockedUid': blockedUid,
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+    });
+
+Future<void> unblockUser(String uid, String blockedUid) =>
+    blockedCollection(uid).doc(blockedUid).delete();
+
+// ---------------------------------------------------------------------------
+// Account deletion
+//
+// Google Play requires an in-app route to delete the account and its data.
+// ---------------------------------------------------------------------------
+
+/// Every subcollection under `users/{uid}`. Kept explicit rather than
+/// discovered at runtime, because the client SDK cannot enumerate
+/// subcollections — a forgotten name here means orphaned health data.
+const _userSubcollections = <String>[
+  'cycles', 'moods', 'symptoms', 'sleep', 'water', 'exercises',
+  'journals', 'goals', 'assessments', 'reminders', 'reminder_logs',
+  'habits', 'habit_logs', 'feedback', 'score_logs', 'consents', 'blocked',
+];
+
+/// Deletes all of a user's health data, then the profile document itself.
+///
+/// Deliberately does NOT delete their community posts: those are visible to
+/// others and deleting them would tear holes in other people's comment
+/// threads. They are anonymised instead.
+///
+/// Appointments are also left alone — a clinician's consultation record may
+/// be subject to medical retention obligations. The consent documents are
+/// removed, which cuts off the clinician's access to the chart immediately.
+Future<void> deleteAccountData(String uid) async {
+  for (final name in _userSubcollections) {
+    // Page through in batches; a long-running user can exceed the 500-write
+    // limit of a single batch.
+    while (true) {
+      final snap = await userRef(uid).collection(name).limit(400).get();
+      if (snap.docs.isEmpty) break;
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      if (snap.docs.length < 400) break;
+    }
+  }
+
+  await _anonymisePosts(uid);
+  await userRef(uid).delete();
+}
+
+/// Strips identity from a departing user's community posts while leaving the
+/// thread intact for everyone else.
+Future<void> _anonymisePosts(String uid) async {
+  final posts = await postsCollection.where('authorUid', isEqualTo: uid).get();
+  for (final doc in posts.docs) {
+    await doc.reference.update({
+      'authorName': 'Deleted user',
+      'authorInitials': '?',
+      'authorPhotoUrl': '',
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Community — group membership
 //   groups/{groupId}/members/{uid}
 // Group metadata itself is a fixed in-app catalog (see community_groups.dart);
@@ -501,6 +608,22 @@ Future<void> saveAssessment(
 CollectionReference<Map<String, dynamic>> get doctorsCollection =>
     _db.collection('doctors');
 
+/// Whether [uid] is a clinician account.
+///
+/// A `doctors/{uid}` document keyed by the auth uid IS the role. It can only
+/// be created server-side (see `tool/seed_doctors.js`), so a client cannot
+/// promote itself — the same check backs every doctor rule in firestore.rules.
+Future<bool> isDoctorAccount(String uid) async {
+  if (uid.isEmpty) return false;
+  final snap = await doctorsCollection.doc(uid).get();
+  return snap.exists;
+}
+
+Future<DoctorRecord?> getDoctorProfile(String uid) async {
+  final snap = await doctorsCollection.doc(uid).get();
+  return snap.exists ? DoctorRecord.fromSnapshot(snap) : null;
+}
+
 Stream<List<DoctorRecord>> streamAvailableDoctors(
         {List<String>? conditions}) =>
     doctorsCollection.snapshots().map((s) {
@@ -532,29 +655,121 @@ List<String> _generateDefaultSlots() {
 }
 
 // ---------------------------------------------------------------------------
-// users/{uid}/appointments
+// users/{uid}/consents/{doctorUid}
+//
+// The patient's explicit, revocable grant letting one doctor read their health
+// data. Firestore rules key doctor access off the existence of this document,
+// so revoking it cuts off access on the next read — no cache to invalidate.
 // ---------------------------------------------------------------------------
 
-CollectionReference<Map<String, dynamic>> appointmentsCollection(String uid) =>
-    userRef(uid).collection('appointments');
+CollectionReference<Map<String, dynamic>> consentsCollection(String uid) =>
+    userRef(uid).collection('consents');
 
-String newAppointmentId(String uid) => appointmentsCollection(uid).doc().id;
+Stream<List<String>> streamConsentedDoctorIds(String uid) =>
+    consentsCollection(uid).snapshots().map((s) => s.docs.map((d) => d.id).toList());
 
-Stream<List<AppointmentRecord>> streamAppointments(String uid) =>
-    appointmentsCollection(uid)
+Future<void> grantDoctorConsent(
+  String patientUid, {
+  required String doctorUid,
+  required String doctorName,
+}) =>
+    consentsCollection(patientUid).doc(doctorUid).set({
+      'doctorUid': doctorUid,
+      'doctorName': doctorName,
+      'grantedAt': Timestamp.fromDate(DateTime.now()),
+    });
+
+/// Revokes a doctor's access to this patient's health data.
+Future<void> revokeDoctorConsent(String patientUid, String doctorUid) =>
+    consentsCollection(patientUid).doc(doctorUid).delete();
+
+// ---------------------------------------------------------------------------
+// appointments (TOP LEVEL) — appointments/{appointmentId}
+//
+// Deliberately not nested under users/{uid}: a doctor must be able to read
+// bookings made against them, and burying them in the patient's private tree
+// makes that impossible without over-granting access to everything else.
+// ---------------------------------------------------------------------------
+
+CollectionReference<Map<String, dynamic>> get appointmentsCollection =>
+    _db.collection('appointments');
+
+DocumentReference<Map<String, dynamic>> appointmentRef(String id) =>
+    appointmentsCollection.doc(id);
+
+String newAppointmentId() => appointmentsCollection.doc().id;
+
+Stream<AppointmentRecord> streamAppointment(String appointmentId) =>
+    appointmentRef(appointmentId)
+        .snapshots()
+        .map(AppointmentRecord.fromSnapshot);
+
+/// All of a patient's bookings, newest first.
+Stream<List<AppointmentRecord>> streamPatientAppointments(String patientUid) =>
+    appointmentsCollection
+        .where('patientUid', isEqualTo: patientUid)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((s) => s.docs.map(AppointmentRecord.fromSnapshot).toList());
 
-Future<void> bookAppointment(String uid, AppointmentRecord record) =>
-    appointmentsCollection(uid).doc(record.id).set(record.toMap());
+/// Everything booked against a doctor, soonest first — the doctor's queue.
+Stream<List<AppointmentRecord>> streamDoctorAppointments(String doctorUid) =>
+    appointmentsCollection
+        .where('doctorUid', isEqualTo: doctorUid)
+        .orderBy('scheduledAt')
+        .snapshots()
+        .map((s) => s.docs.map(AppointmentRecord.fromSnapshot).toList());
 
-Future<void> updateAppointmentStatus(
-        String uid, String appointmentId, String status) =>
-    appointmentsCollection(uid).doc(appointmentId).update({'status': status});
+/// Books a consultation and grants the doctor consent to view the patient's
+/// health data, atomically — the doctor should never end up with a booking
+/// they cannot open, nor consent without a booking.
+Future<void> bookAppointment(AppointmentRecord record) {
+  final batch = _db.batch();
+  batch.set(appointmentRef(record.id), record.toMap());
+  batch.set(
+    consentsCollection(record.patientUid).doc(record.doctorUid),
+    {
+      'doctorUid': record.doctorUid,
+      'doctorName': record.doctorName,
+      'grantedAt': Timestamp.fromDate(DateTime.now()),
+      'appointmentId': record.id,
+    },
+  );
+  return batch.commit();
+}
 
-Stream<AppointmentRecord?> streamNextAppointment(String uid) =>
-    appointmentsCollection(uid)
+/// Patient-side cancel. Rules permit the patient to set only this one status.
+Future<void> cancelAppointment(String appointmentId) =>
+    appointmentRef(appointmentId).update({
+      'status': 'cancelled',
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+
+/// Doctor-side lifecycle + clinical notes. Rules restrict this field set to
+/// the assigned doctor.
+Future<void> doctorUpdateAppointment(
+  String appointmentId, {
+  String? status,
+  String? doctorNotes,
+  String? prescriptionText,
+}) {
+  final data = <String, dynamic>{
+    'updatedAt': Timestamp.fromDate(DateTime.now()),
+  };
+  if (status != null) {
+    data['status'] = status;
+    if (status == 'completed') {
+      data['completedAt'] = Timestamp.fromDate(DateTime.now());
+    }
+  }
+  if (doctorNotes != null) data['doctorNotes'] = doctorNotes;
+  if (prescriptionText != null) data['prescriptionText'] = prescriptionText;
+  return appointmentRef(appointmentId).update(data);
+}
+
+Stream<AppointmentRecord?> streamNextAppointment(String patientUid) =>
+    appointmentsCollection
+        .where('patientUid', isEqualTo: patientUid)
         .where('status', whereIn: ['booked', 'ongoing'])
         .orderBy('scheduledAt')
         .limit(1)
@@ -564,37 +779,67 @@ Stream<AppointmentRecord?> streamNextAppointment(String uid) =>
             : AppointmentRecord.fromSnapshot(s.docs.first));
 
 // ---------------------------------------------------------------------------
-// Consultation chat messages (real-time)
-// Stored at: users/{uid}/appointments/{appointmentId}/messages/{messageId}
+// Consultation chat — appointments/{appointmentId}/messages/{messageId}
+//
+// Messages are immutable by rule: a transcript either side can rewrite after
+// the fact is not a clinical record.
 // ---------------------------------------------------------------------------
 
 CollectionReference<Map<String, dynamic>> chatMessagesCollection(
-        String uid, String appointmentId) =>
-    appointmentsCollection(uid).doc(appointmentId).collection('messages');
+        String appointmentId) =>
+    appointmentRef(appointmentId).collection('messages');
 
-Stream<List<Map<String, dynamic>>> streamChatMessages(
-    String uid, String appointmentId) =>
-    chatMessagesCollection(uid, appointmentId)
+Stream<List<Map<String, dynamic>>> streamChatMessages(String appointmentId) =>
+    chatMessagesCollection(appointmentId)
         .orderBy('sentAt', descending: false)
+        .limit(500)
         .snapshots()
         .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
 
-Future<void> sendChatMessage(String uid, String appointmentId, {
+/// Maximum characters accepted in one chat message. Mirrors the cap enforced
+/// in firestore.rules — the rule is the real boundary, this is the UX hint.
+const int kMaxChatMessageLength = 4000;
+
+Future<void> sendChatMessage(
+  String appointmentId, {
   required String senderUid,
   required String senderName,
   required String content,
   String type = 'text',
-}) => chatMessagesCollection(uid, appointmentId).doc().set({
-  'senderUid': senderUid,
-  'senderName': senderName,
-  'content': content,
-  'type': type,
-  'sentAt': Timestamp.fromDate(DateTime.now()),
-});
+}) {
+  final trimmed = content.trim();
+  if (trimmed.isEmpty) {
+    throw ArgumentError('Message content cannot be empty.');
+  }
+  if (trimmed.length > kMaxChatMessageLength) {
+    throw ArgumentError('Message exceeds $kMaxChatMessageLength characters.');
+  }
+  return chatMessagesCollection(appointmentId).doc().set({
+    'senderUid': senderUid,
+    'senderName': senderName,
+    'content': trimmed,
+    'type': type,
+    'sentAt': Timestamp.fromDate(DateTime.now()),
+  });
+}
 
-/// Generate a Jitsi Meet room URL for a given appointment.
-String jitsiRoomUrl(String appointmentId) =>
-    'https://meet.jit.si/hertwin-$appointmentId';
+/// Builds the video room URL for an appointment.
+///
+/// meet.jit.si rooms are public to anyone holding the URL, so the room name
+/// carries a high-entropy secret generated at booking time and stored on the
+/// appointment document — which only the two participants can read. Guessing
+/// the room from the appointment id alone is not possible.
+String jitsiRoomUrl(String appointmentId, String roomSecret) =>
+    'https://meet.jit.si/hertwin-$appointmentId-$roomSecret';
+
+/// 160 bits of CSPRNG entropy, hex-encoded, for the video room name.
+String generateRoomSecret() {
+  final rng = Random.secure();
+  return List<String>.generate(
+    20,
+    (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
+}
 
 // ---------------------------------------------------------------------------
 // users/{uid}/reminders

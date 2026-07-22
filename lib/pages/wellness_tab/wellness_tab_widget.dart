@@ -1,6 +1,8 @@
+import '/components/app_image.dart';
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
 import '/business/cycle_engine.dart';
+import '/business/video_library.dart';
 import '/business/wellness_content_catalog.dart';
 import '/components/category_chip/category_chip_widget.dart';
 import '/components/wellness_card/wellness_card_widget.dart';
@@ -8,6 +10,7 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'wellness_tab_model.dart';
@@ -76,7 +79,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
               'Gentle poses to ease cramps and restore energy during your menstrual phase.',
           duration: '12 mins',
           img:
-              'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20restorative%20yoga%20in%20a%20calm%20room',
+              AppImages.yogaRestorativeCalm,
           type: 'video',
         );
       case CyclePhase.follicular:
@@ -86,7 +89,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
               'Boost energy and flexibility during your follicular phase.',
           duration: '15 mins',
           img:
-              'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20yoga%20in%20a%20sunlit%20minimal%20room',
+              AppImages.yogaSunlitRoom,
           type: 'video',
         );
       case CyclePhase.ovulation:
@@ -96,7 +99,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
               'Channel your peak energy with a dynamic session during ovulation.',
           duration: '20 mins',
           img:
-              'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20energetic%20workout%20in%20bright%20studio',
+              AppImages.workoutBrightStudio,
           type: 'video',
         );
       case CyclePhase.luteal:
@@ -106,7 +109,7 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
               'Soothe PMS tension and unwind gently during your luteal phase.',
           duration: '10 mins',
           img:
-              'https://dimg.dreamflow.cloud/v1/image/woman%20stretching%20gently%20in%20soft%20evening%20light',
+              AppImages.stretchingEveningLight,
           type: 'video',
         );
     }
@@ -157,6 +160,10 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
           ],
         ),
         const SizedBox(height: 24),
+        _sectionTitle(theme, 'Video Library'),
+        const SizedBox(height: 12),
+        _videoLibraryBanner(theme),
+        const SizedBox(height: 24),
         _sectionTitle(theme, 'Guided Meditations'),
         const SizedBox(height: 12),
         SizedBox(
@@ -171,6 +178,70 @@ class _WellnessTabWidgetState extends State<WellnessTabWidget> {
         const SizedBox(height: 12),
         ...WellnessContentCatalog.articles.take(4).map((a) => _articleTile(theme, a)),
       ],
+    );
+  }
+
+  /// Entry point to the curated real-video library. Uses a live YouTube
+  /// thumbnail as the backdrop rather than a generated placeholder image.
+  Widget _videoLibraryBanner(FlutterFlowTheme theme) {
+    final featured = VideoLibrary.videos.first;
+    return InkWell(
+      onTap: () => context.pushNamed(VideoLibraryWidget.routeName),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        height: 130,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: theme.alternate),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: featured.thumbnailUrl,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(color: theme.primary.withValues(alpha: 0.2)),
+              errorWidget: (_, __, ___) => Container(color: theme.primary.withValues(alpha: 0.2)),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.72),
+                    Colors.black.withValues(alpha: 0.25),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 22),
+                      const SizedBox(width: 8),
+                      Text('${VideoLibrary.videos.length} guided videos',
+                          style: GoogleFonts.poppins(
+                              fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text('Yoga, meditation and breathwork from real teachers',
+                      maxLines: 2,
+                      style: GoogleFonts.inter(
+                          fontSize: 12, color: Colors.white.withValues(alpha: 0.9))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

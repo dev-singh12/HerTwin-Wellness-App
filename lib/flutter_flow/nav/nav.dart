@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '/auth/role_manager.dart';
+import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 
 import '/index.dart';
@@ -38,13 +40,43 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
       navigatorKey: appNavigatorKey,
       errorBuilder: (context, state) => AuthScreenWidget(),
       redirect: (context, state) {
-        final loggedIn = FirebaseAuth.instance.currentUser != null;
+        final user = FirebaseAuth.instance.currentUser;
+        final loggedIn = user != null;
         final location = state.matchedLocation;
         final onAuthScreen = location == '/' ||
             location == AuthScreenWidget.routePath;
+        // Clinician screens all live under /clinician/. Note that
+        // /doctor-selection is a PATIENT screen (picking a specialist), which
+        // is why the prefix is not simply "/doctor".
+        final onClinicianScreen = location.startsWith('/clinician/');
+        // The privacy policy and terms must be readable by everyone, signed
+        // in or not — the sign-in screen asks users to agree to them, so
+        // bouncing them back to sign-in would be circular.
+        final onPublicScreen =
+            location.startsWith(LegalDocumentWidget.routePath);
+
+        if (onPublicScreen) return null;
 
         if (!loggedIn) {
           return onAuthScreen ? null : AuthScreenWidget.routePath;
+        }
+
+        final role = RoleManager.instance;
+        // Role still resolving: hold on the splash route rather than flashing
+        // the patient dashboard at a clinician (or vice versa).
+        if (!role.isResolvedFor(user.uid)) {
+          return onAuthScreen ? null : '/';
+        }
+
+        if (role.isDoctor) {
+          // A clinician account has no patient surface.
+          return onClinicianScreen ? null : DoctorDashboardWidget.routePath;
+        }
+
+        // A patient must never reach the clinician surface. The rules would
+        // deny the reads anyway, but there is no reason to render the shell.
+        if (onClinicianScreen) {
+          return HomeDashboardWidget.routePath;
         }
         if (onAuthScreen) {
           return HomeDashboardWidget.routePath;
@@ -55,7 +87,7 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: '_initialize',
           path: '/',
-          builder: (context, _) => AuthScreenWidget(),
+          builder: (context, _) => const AppBootGate(),
         ),
         FFRoute(
           name: AuthScreenWidget.routeName,
@@ -162,8 +194,63 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
             contentId: params.getParam('contentId', ParamType.String) as String?,
           ),
         ),
+        FFRoute(
+          name: LegalDocumentWidget.routeName,
+          path: LegalDocumentWidget.routePath,
+          builder: (context, params) => LegalDocumentWidget(
+            docType: params.getParam('docType', ParamType.String),
+          ),
+        ),
+        FFRoute(
+          name: VideoLibraryWidget.routeName,
+          path: VideoLibraryWidget.routePath,
+          builder: (context, params) => VideoLibraryWidget(),
+        ),
+        FFRoute(
+          name: VideoPlayerWidget.routeName,
+          path: VideoPlayerWidget.routePath,
+          builder: (context, params) => VideoPlayerWidget(
+            videoId: params.getParam('videoId', ParamType.String),
+          ),
+        ),
+        // --- Clinician surface ---
+        FFRoute(
+          name: DoctorDashboardWidget.routeName,
+          path: DoctorDashboardWidget.routePath,
+          builder: (context, params) => DoctorDashboardWidget(),
+        ),
+        FFRoute(
+          name: DoctorPatientDetailWidget.routeName,
+          path: DoctorPatientDetailWidget.routePath,
+          builder: (context, params) => DoctorPatientDetailWidget(
+            appointmentId: params.getParam('appointmentId', ParamType.String),
+          ),
+        ),
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );
+
+/// Shown at `/` while the signed-in account's role is still being resolved.
+///
+/// Without this the router would render the patient dashboard for the frame
+/// or two before `RoleManager` answers, which means a clinician would see
+/// someone else's app flash past on every cold start.
+class AppBootGate extends StatelessWidget {
+  const AppBootGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final loggedIn = FirebaseAuth.instance.currentUser != null;
+    if (!loggedIn) return AuthScreenWidget();
+    return Scaffold(
+      backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+      body: Center(
+        child: CircularProgressIndicator(
+          color: FlutterFlowTheme.of(context).primary,
+        ),
+      ),
+    );
+  }
+}
 
 extension NavParamExtensions on Map<String, String?> {
   Map<String, String> get withoutNulls => Map.fromEntries(

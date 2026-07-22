@@ -1,8 +1,8 @@
+import '/components/app_image.dart';
 import 'dart:async';
 
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
-import '/backend/seed_data.dart';
 import '/business/cycle_engine.dart';
 import '/components/button/button_widget.dart';
 import '/components/calendar_pill/calendar_pill_widget.dart';
@@ -13,7 +13,6 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
 import '/utils/app_date_utils.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'home_dashboard_model.dart';
@@ -78,8 +77,11 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
           context.goNamed(OnboardingStepFormWidget.routeName);
           return;
         }
-        // User is onboarded — now safe to set up streams
-        seedDoctorsIfNeeded().catchError((_) {});
+        // User is onboarded — now safe to set up streams.
+        // Doctor seeding used to run from here. It is now server-side only
+        // (`node tool/admin.js seed-doctors`): a client that can write the
+        // doctors collection is a client that can grant itself the privilege
+        // to read other people's medical records.
         safeSetState(() => _loading = false);
         _startStreams(uid);
       }).catchError((_) {
@@ -343,20 +345,17 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         child: ClipRRect(
                                           borderRadius:
                                               BorderRadius.circular(24.0),
-                                          child: CachedNetworkImage(
-                                            fadeInDuration:
-                                                Duration(milliseconds: 0),
-                                            fadeOutDuration:
-                                                Duration(milliseconds: 0),
-                                            imageUrl: (_user?.photoUrl ?? '')
+                                          // Uploaded photo when there is one,
+                                          // otherwise the bundled portrait.
+                                          child: AppImage(
+                                            (_user?.photoUrl ?? '')
                                                     .trim()
                                                     .isNotEmpty
                                                 ? _user!.photoUrl
-                                                : 'https://dimg.dreamflow.cloud/v1/image/soft%20digital%20painting%20of%20a%20woman',
+                                                : AppImages.womanPortraitSoft,
                                             width: 48.0,
                                             height: 48.0,
                                             fit: BoxFit.cover,
-                                            alignment: Alignment(0.0, 0.0),
                                           ),
                                         ),
                                       ),

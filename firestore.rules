@@ -1,79 +1,310 @@
 rules_version = '2';
 
+// =============================================================================
+// HerTwin Wellness — Firestore security rules
+//
+// Threat model notes (why the rules look like this):
+//   * This app stores health data. Default posture is DENY; every read of one
+//     user's data by another principal must be justified by an explicit,
+//     patient-granted consent document.
+//   * Nothing the client sends is trusted. Identity fields (uid, authorUid,
+//     patientUid, senderUid) are always pinned to request.auth.uid on create
+//     and made immutable on update.
+//   * Privilege fields (role, doctor identity, ratings, payment state) are
+//     never client-writable — a client that can raise its own privileges is
+//     the same as no rules at all.
+//   * Every free-text field is length-capped. Unbounded writes are a cost and
+//     availability attack, not just a hygiene issue.
+//   * Denormalized counters may only move by one step at a time, so a client
+//     cannot write likeCount = 999999.
+// =============================================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // A signed-in user may read and write only their own profile document
-    // and everything nested under it (cycles, moods, symptoms, sleep,
-    // water, exercises, journals, goals).
-    match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
 
-      match /{collection}/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // A doctor is someone with a doctors/{uid} profile keyed by their auth uid.
+    // That document is only creatable server-side (Admin SDK), so this is a
+    // privilege the client cannot grant itself.
+    function isDoctor() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/doctors/$(request.auth.uid));
+    }
+
+    // A doctor may see a patient's health data only while the patient holds an
+    // active consent document naming that doctor. The patient creates and can
+    // revoke it at any time; deleting it immediately cuts off access.
+    function hasConsent(patientUid) {
+      return isDoctor()
+        && exists(/databases/$(database)/documents/users/$(patientUid)/consents/$(request.auth.uid));
+    }
+
+    function isText(value, maxLen) {
+      return value is string && value.size() > 0 && value.size() <= maxLen;
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ---------------------------------------------------------------------
+    // users/{uid} — the patient's private tree.
+    // Readable by the owner, and by a doctor holding an active consent.
+    // Writable ONLY by the owner.
+    // ---------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if isOwner(uid) || hasConsent(uid);
+
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid;
+
+      // uid is immutable, and the client may never award itself a role.
+      allow update: if isOwner(uid)
+        && request.resource.data.uid == resource.data.uid
+        && !changed().hasAny(['role', 'isDoctor', 'isAdmin']);
+
+      allow delete: if isOwner(uid);
+
+      // Recursive: covers cycles, moods, symptoms, sleep, water, exercises,
+      // journals, goals, assessments, reminders, reminder_logs, habits,
+      // habit_logs, feedback, score_logs and consents — at any nesting depth.
+      //
+      // The previous rule matched only /users/{uid}/{collection}/{docId},
+      // which silently denied anything deeper.
+      match /{document=**} {
+        allow read: if isOwner(uid) || hasConsent(uid);
+        allow write: if isOwner(uid);
       }
     }
 
     // ---------------------------------------------------------------------
-    // Community — cross-user posts, likes, comments.
+    // doctors/{doctorUid} — doc id IS the doctor's auth uid.
+    //
+    // Client create/delete is forbidden outright: a doctor profile is what
+    // grants access to patient data, so it is provisioned server-side only
+    // (see tool/seed_doctors.js, which runs with Admin credentials).
     // ---------------------------------------------------------------------
-    match /posts/{postId} {
-      // Anyone signed in can read the feed.
-      allow read: if request.auth != null;
+    match /doctors/{doctorUid} {
+      allow read: if isSignedIn();
 
-      // A post may only be created by its own author.
-      allow create: if request.auth != null
-        && request.resource.data.authorUid == request.auth.uid;
+      // A doctor may edit their own bio/availability, but not their identity,
+      // their own rating, or their review count.
+      allow update: if isOwner(doctorUid)
+        && !changed().hasAny([
+             'doctorId', 'rating', 'reviewCount', 'createdAt', 'verified'
+           ]);
 
-      // The author may fully edit/delete their post; anyone signed in may
-      // change ONLY the denormalized counters (for like/comment actions).
-      allow update: if request.auth != null && (
-        resource.data.authorUid == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['likeCount', 'commentCount'])
-      );
-      allow delete: if request.auth != null
-        && resource.data.authorUid == request.auth.uid;
+      allow create, delete: if false;
+    }
 
-      // Likes: one doc per user, keyed by uid. A user manages only their own.
-      match /likes/{likeUid} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == likeUid;
+    // ---------------------------------------------------------------------
+    // appointments/{appointmentId} — TOP LEVEL, so both sides can see it.
+    //
+    // Previously these lived under users/{uid}/appointments, which made a
+    // doctor dashboard impossible: a doctor could not read a booking made
+    // against them without also being granted the patient's whole tree.
+    // ---------------------------------------------------------------------
+    match /appointments/{appointmentId} {
+
+      function isPatient() {
+        return isSignedIn() && resource.data.patientUid == request.auth.uid;
       }
 
-      // Comments: anyone signed in can read; authors create/delete their own.
+      function isAssignedDoctor() {
+        return isSignedIn() && resource.data.doctorUid == request.auth.uid;
+      }
+
+      allow read: if isPatient() || isAssignedDoctor();
+
+      allow create: if isSignedIn()
+        // The booker is always the patient — cannot book "as" someone else.
+        && request.resource.data.patientUid == request.auth.uid
+        // The named doctor must actually exist.
+        && exists(/databases/$(database)/documents/doctors/$(request.resource.data.doctorUid))
+        // A new booking always starts in 'booked'.
+        && request.resource.data.status == 'booked'
+        // Price is server-defined in spirit; bound it so a client cannot write
+        // a nonsense value into what is effectively a billing record.
+        && request.resource.data.priceRs is int
+        && request.resource.data.priceRs >= 0
+        && request.resource.data.priceRs <= 100000
+        // Payment state is not client-assertable.
+        && request.resource.data.paymentStatus in ['demo', 'unpaid'];
+
+      allow update: if
+        // The patient may only ever cancel. They cannot mark themselves
+        // 'completed', cannot edit clinical notes, cannot change the price.
+        (isPatient()
+          && changed().hasOnly(['status', 'updatedAt'])
+          && request.resource.data.status == 'cancelled')
+        ||
+        // The assigned doctor drives the clinical lifecycle and owns the notes.
+        (isAssignedDoctor()
+          && changed().hasOnly([
+               'status', 'doctorNotes', 'prescriptionText',
+               'updatedAt', 'completedAt'
+             ])
+          && request.resource.data.status in
+               ['booked', 'ongoing', 'completed', 'cancelled']
+          && (!('doctorNotes' in request.resource.data)
+              || request.resource.data.doctorNotes.size() <= 5000));
+
+      // Appointments are a clinical record — nobody deletes them from a client.
+      allow delete: if false;
+
+      // -------------------------------------------------------------------
+      // messages — the consultation transcript.
+      // -------------------------------------------------------------------
+      match /messages/{messageId} {
+
+        function appt() {
+          return get(/databases/$(database)/documents/appointments/$(appointmentId)).data;
+        }
+
+        function isInThisConsult() {
+          return isSignedIn()
+            && (appt().patientUid == request.auth.uid
+                || appt().doctorUid == request.auth.uid);
+        }
+
+        allow read: if isInThisConsult();
+
+        allow create: if isInThisConsult()
+          // Cannot forge a message from the other party.
+          && request.resource.data.senderUid == request.auth.uid
+          && isText(request.resource.data.content, 4000);
+
+        // Immutable: a consultation transcript that either side can rewrite
+        // after the fact is not a medical record.
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // posts/{postId} — cross-user community feed.
+    // ---------------------------------------------------------------------
+    match /posts/{postId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && isText(request.resource.data.content, 5000)
+        && isText(request.resource.data.category, 60)
+        // A new post cannot arrive pre-loaded with fake engagement.
+        && request.resource.data.likeCount == 0
+        && request.resource.data.commentCount == 0;
+
+      allow update: if
+        // Author editing their own text, or refreshing their display fields
+        // (rename, new photo, or anonymisation on account deletion).
+        (isSignedIn()
+          && resource.data.authorUid == request.auth.uid
+          && changed().hasOnly([
+               'content', 'category', 'updatedAt',
+               'authorName', 'authorInitials', 'authorPhotoUrl'
+             ])
+          && (!('content' in changed())
+              || isText(request.resource.data.content, 5000)))
+        ||
+        // Anyone signed in may move the like counter by exactly one step.
+        // The old rule allowed hasOnly(['likeCount','commentCount']) with no
+        // value check, so any user could set either counter to any number.
+        (isSignedIn()
+          && changed().hasOnly(['likeCount'])
+          && request.resource.data.likeCount is int
+          && request.resource.data.likeCount >= 0
+          && (request.resource.data.likeCount - resource.data.likeCount) in [1, -1])
+        ||
+        // Comment counter only ever increments, by one.
+        (isSignedIn()
+          && changed().hasOnly(['commentCount'])
+          && request.resource.data.commentCount is int
+          && (request.resource.data.commentCount - resource.data.commentCount) == 1);
+
+      allow delete: if isSignedIn()
+        && resource.data.authorUid == request.auth.uid;
+
+      // Likes — one doc per user, id == uid, so a user can only like as self.
+      match /likes/{likeUid} {
+        allow read: if isSignedIn();
+        allow create: if isOwner(likeUid)
+          && request.resource.data.uid == likeUid;
+        allow delete: if isOwner(likeUid);
+        allow update: if false;
+      }
+
       match /comments/{commentId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null
-          && request.resource.data.authorUid == request.auth.uid;
-        allow delete: if request.auth != null
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.authorUid == request.auth.uid
+          && isText(request.resource.data.content, 2000);
+        allow update: if false;
+        allow delete: if isSignedIn()
           && resource.data.authorUid == request.auth.uid;
       }
     }
 
     // ---------------------------------------------------------------------
-    // Community — group membership (group metadata is an in-app catalog).
+    // groups/{groupId}/members/{uid} — membership only; group metadata is an
+    // in-app catalog, so the group document itself is not client-writable.
     // ---------------------------------------------------------------------
     match /groups/{groupId} {
-      allow read: if request.auth != null;
+      allow read: if isSignedIn();
+      allow write: if false;
+
       match /members/{memberUid} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == memberUid;
+        allow read: if isSignedIn();
+        allow create, delete: if isOwner(memberUid);
+        allow update: if false;
       }
     }
 
     // ---------------------------------------------------------------------
-    // Doctors — anyone signed in can read; admin-only write.
+    // reports — moderation queue for user-generated content.
+    //
+    // Write-only from the client. A user may file a report but cannot read,
+    // edit or delete any report, including their own: an inspectable queue
+    // would let a bad actor confirm whether they had been reported, and an
+    // editable one would let them erase the evidence.
     // ---------------------------------------------------------------------
-    match /doctors/{doctorId} {
-      allow read: if request.auth != null;
-      // TODO: restrict to admin in production
-      allow write: if request.auth != null;
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && request.resource.data.reporterUid == request.auth.uid
+        && isText(request.resource.data.reason, 1000)
+        && isText(request.resource.data.contentType, 40)
+        && isText(request.resource.data.contentId, 200)
+        && request.resource.data.status == 'open';
+
+      allow read, update, delete: if false;
     }
 
-    // Meta (seeding guard)
+    // ---------------------------------------------------------------------
+    // Server-owned collections. Read-only to every client.
+    // ---------------------------------------------------------------------
     match /meta/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow write: if false;
     }
+
+    // Editable wellness content catalog, published from the admin tool.
+    match /content/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Anything not matched above is denied by default. Do not add a
+    // catch-all match here.
   }
 }

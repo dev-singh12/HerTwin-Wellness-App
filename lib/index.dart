@@ -30,3 +30,12 @@ export '/pages/breathwork_guide/breathwork_guide_widget.dart'
 export '/pages/mood_journal/mood_journal_widget.dart' show MoodJournalWidget;
 export '/pages/meditation_guide/meditation_guide_widget.dart'
     show MeditationGuideWidget;
+export '/pages/legal_document/legal_document_widget.dart'
+    show LegalDocumentWidget;
+export '/pages/video_library/video_library_widget.dart' show VideoLibraryWidget;
+export '/pages/video_player/video_player_widget.dart' show VideoPlayerWidget;
+// Clinician surface — reached only by accounts with a doctors/{uid} profile.
+export '/pages/doctor_dashboard/doctor_dashboard_widget.dart'
+    show DoctorDashboardWidget;
+export '/pages/doctor_patient_detail/doctor_patient_detail_widget.dart'
+    show DoctorPatientDetailWidget;

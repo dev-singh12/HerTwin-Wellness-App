@@ -66,11 +66,107 @@ class AuthManager {
     }
   }
 
+  /// Web sign-in error codes that mean "the popup route is unavailable here",
+  /// as opposed to "the user declined". Each of these should transparently
+  /// fall back to a full-page redirect rather than surfacing an error.
+  static const _popupUnavailableCodes = {
+    'popup-blocked',
+    'operation-not-supported-in-this-environment',
+    'web-storage-unsupported',
+    'internal-error',
+  };
+
+  /// The user shut the popup themselves. Not a failure — do NOT respond by
+  /// yanking them through a full-page redirect they did not ask for.
+  static const _userCancelledCodes = {
+    'popup-closed-by-user',
+    'cancelled-popup-request',
+    'user-cancelled',
+  };
+
+  /// Creates the `users/{uid}` document on first sign-in, or refreshes the
+  /// last-active stamp on subsequent ones. Shared by the popup and redirect
+  /// paths so a redirect sign-in is not left without a profile document.
+  Future<void> _provisionUserDocument(User user) async {
+    await _safeFirestore(() async {
+      final existing = await getUser(user.uid);
+      if (existing == null) {
+        final now = DateTime.now();
+        await createUser(UsersRecord(
+          uid: user.uid,
+          email: user.email ?? '',
+          displayName: user.displayName ?? '',
+          photoUrl: user.photoURL ?? '',
+          onboardingComplete: false,
+          createdAt: now,
+          lastActiveAt: now,
+        ));
+      } else {
+        await _touchLastActive(user.uid);
+      }
+    });
+  }
+
+  /// Completes a redirect-based sign-in, if one is pending.
+  ///
+  /// Call once at startup. When [signInWithGoogle] falls back to redirect the
+  /// browser navigates away, so the user document has to be provisioned when
+  /// the app reloads rather than inside the original call.
+  Future<void> completePendingRedirect() async {
+    if (!kIsWeb) return;
+    try {
+      final result = await _auth.getRedirectResult();
+      final user = result.user;
+      if (user != null) {
+        _usedGoogle = true;
+        await _provisionUserDocument(user);
+      }
+    } catch (e) {
+      debugPrint('No pending redirect sign-in: $e');
+    }
+  }
+
   Future<void> signInWithGoogle() async {
     try {
       late final UserCredential credential;
       if (kIsWeb) {
-        credential = await _auth.signInWithPopup(GoogleAuthProvider());
+        // Popups are blocked in embedded webviews, in-app browsers, and by
+        // some privacy settings. Firebase can hang silently in that case
+        // rather than throwing, so fall back to a redirect instead of
+        // leaving the user staring at a spinner.
+        final startedAt = DateTime.now();
+        try {
+          credential = await _auth
+              .signInWithPopup(GoogleAuthProvider())
+              .timeout(const Duration(seconds: 90));
+        } on TimeoutException {
+          await _auth.signInWithRedirect(GoogleAuthProvider());
+          return; // Page navigates away; resumes in completePendingRedirect.
+        } on FirebaseAuthException catch (e) {
+          debugPrint('Google popup sign-in failed: ${e.code} — ${e.message}');
+
+          if (_userCancelledCodes.contains(e.code)) {
+            // Firebase reports "popup closed by user" both when someone
+            // genuinely dismisses the window AND when the popup closes
+            // itself — which is what happens when third-party cookies are
+            // blocked, since the flow cannot reach its own auth domain.
+            //
+            // The two are indistinguishable by error code, but not by time:
+            // nobody finds, reads and dismisses a Google account chooser in
+            // under three seconds. A near-instant close is the browser, not
+            // the user, so fall back to redirect instead of blaming them.
+            final elapsed = DateTime.now().difference(startedAt);
+            if (elapsed < const Duration(seconds: 3)) {
+              await _auth.signInWithRedirect(GoogleAuthProvider());
+              return;
+            }
+            throw 'Sign in cancelled.';
+          }
+
+          if (!_popupUnavailableCodes.contains(e.code)) rethrow;
+          await _auth.signInWithRedirect(GoogleAuthProvider());
+          return;
+        }
       } else {
         if (!_googleInitialized) {
           await GoogleSignIn.instance.initialize();
@@ -84,25 +180,7 @@ class AuthManager {
       }
 
       _usedGoogle = true;
-      final user = credential.user!;
-
-      await _safeFirestore(() async {
-        final existing = await getUser(user.uid);
-        if (existing == null) {
-          final now = DateTime.now();
-          await createUser(UsersRecord(
-            uid: user.uid,
-            email: user.email ?? '',
-            displayName: user.displayName ?? '',
-            photoUrl: user.photoURL ?? '',
-            onboardingComplete: false,
-            createdAt: now,
-            lastActiveAt: now,
-          ));
-        } else {
-          await _touchLastActive(user.uid);
-        }
-      });
+      await _provisionUserDocument(credential.user!);
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         throw 'Sign in cancelled.';

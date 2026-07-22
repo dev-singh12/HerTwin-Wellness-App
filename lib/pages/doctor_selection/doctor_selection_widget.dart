@@ -280,29 +280,45 @@ class _DoctorSelectionWidgetState extends State<DoctorSelectionWidget> {
                       onPressed: (selectedDate == null || selectedSlot == null || (selectedType == null && !isFree) || booking) ? null : () async {
                         setSheetState(() => booking = true);
                         try {
-                          final appointmentId = newAppointmentId(uid);
-                          final price = isFree ? 0 : (selectedType == 'chat' ? 200 : selectedType == 'call' ? 300 : 500);
-                          if (!isFree) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Payment integration coming soon! Booking as preview.')),
-                            );
-                          }
+                          final appointmentId = newAppointmentId();
+                          // Prices must match the tiers shown above (₹300 chat /
+                          // ₹500 video). Pilot runs in demo mode: no gateway,
+                          // no money moves, and paymentStatus is not something
+                          // the client could assert as 'paid' anyway — the
+                          // security rules only accept 'demo' or 'unpaid'.
+                          final price = isFree
+                              ? 0
+                              : (selectedType == 'chat' ? 300 : 500);
                           final scheduledAt = DateFormat('yyyy-MM-dd').parse(selectedDate!).add(Duration(
                             hours: int.parse(selectedSlot!.split(':')[0]),
                             minutes: int.parse(selectedSlot!.split(':')[1]),
                           ));
-                          await bookAppointment(uid, AppointmentRecord(
+                          // Denormalize the clinical context onto the booking so
+                          // the doctor's queue renders without a read per row.
+                          final patient = await getUser(uid);
+                          final type = isFree ? 'free_first' : (selectedType ?? 'chat');
+                          await bookAppointment(AppointmentRecord(
                             id: appointmentId,
-                            uid: uid,
-                            doctorId: doctor.id,
+                            patientUid: uid,
+                            patientName: patient?.displayName ?? '',
+                            patientPhotoUrl: patient?.photoUrl ?? '',
+                            patientAge: patient?.age ?? 0,
+                            patientCondition: patient?.conditionType ?? '',
+                            patientSeverity: patient?.latestSeverityLabel ?? '',
+                            patientScore: patient?.healthVitalityScore ?? 0,
+                            doctorUid: doctor.id,
                             doctorName: doctor.name,
                             doctorPhotoUrl: doctor.photoUrl,
                             doctorSpecialty: doctor.specialty,
-                            consultationType: isFree ? 'free_first' : (selectedType ?? 'chat'),
+                            consultationType: type,
                             priceRs: price,
+                            paymentStatus: 'demo',
                             status: 'booked',
                             scheduledAt: scheduledAt,
-                            notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                            meetingLink: type == 'video'
+                                ? jitsiRoomUrl(appointmentId, generateRoomSecret())
+                                : null,
+                            reasonForVisit: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
                             createdAt: DateTime.now(),
                           ));
                           if (isFree) {
@@ -331,7 +347,7 @@ class _DoctorSelectionWidgetState extends State<DoctorSelectionWidget> {
                   ),
                   if (!isFree) ...[
                     const SizedBox(height: 8),
-                    Center(child: Text('\u{1F512} Secure payment via Razorpay', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey))),
+                    Center(child: Text('Demo booking \u{2014} no payment is taken', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey))),
                     // TODO: Razorpay integration — see https://razorpay.com/docs/payments/payment-gateway/flutter-integration/
                   ],
                   const SizedBox(height: 24),

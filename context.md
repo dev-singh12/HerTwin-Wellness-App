@@ -30,17 +30,25 @@ business logic added by hand.
 - **Flutter 3.44.1 / Dart 3.12.1**, installed at `~/development/flutter`
   (NOT on global PATH). **Always invoke by absolute path:**
   `~/development/flutter/bin/flutter`
+- **Android toolchain installed** (`flutter doctor` Android section is green):
+  OpenJDK 17 at `/opt/homebrew/opt/openjdk@17`, SDK at
+  `~/Library/Android/sdk` (platform 36, build-tools 36.0.0), all licences
+  accepted. Both paths are stored via `flutter config`, so `flutter build apk`
+  needs no env vars. Full details + reproduction steps in
+  `tool/ANDROID_SETUP.md`.
 - **Routing:** `go_router` 12.1.3 via FlutterFlow's `createRouter` in
   `lib/flutter_flow/nav/nav.dart`.
 - **Firebase:** `firebase_core ^4.10`, `firebase_auth ^6.5`,
   `cloud_firestore ^6.5`, `firebase_storage ^13.4`, `firebase_analytics ^12.4`.
 - **Other key deps:** `image_picker ^1.2`, `fl_chart 1.0.0`, `google_fonts`,
   `cached_network_image`, `google_sign_in`, `provider`, `intl`, `url_launcher`,
-  `jitsi_meet_flutter_sdk` (video calls).
+  `youtube_player_iframe` (embedded video), `flutter_svg`, `lottie`.
+  Note: Jitsi video is launched via `url_launcher` to meet.jit.si — there is
+  **no** `jitsi_meet_flutter_sdk` dependency despite older notes saying so.
 - **Firebase CLI:** v15.19.1 installed (via nvm node v22).
-- **Local run targets available:** `macOS (desktop)` and `Chrome (web)`. No
-  iOS/Android device/emulator currently attached. **Web (Chrome) is the
-  primary local test target.**
+- **Local run targets:** Android (SDK installed, APK + AAB build clean),
+  macOS desktop, Chrome/web. No emulator or physical device is attached, so
+  **web remains the fastest review loop** — serve with `tool/serve_web.py`.
 
 ### Common commands
 ```bash
@@ -73,7 +81,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 ### Directory layout
 - `lib/pages/<page>/` — one folder per screen: `<page>_widget.dart` (UI +
   logic) and `<page>_model.dart` (FlutterFlow model: child component models,
-  controllers, `initState`/`dispose`). 19 pages (see §4).
+  controllers, `initState`/`dispose`). 24 pages (see §4).
 - `lib/components/<name>/` — 23 reusable FlutterFlow visual components
   (`*_widget.dart` + `*_model.dart`).
 - `lib/flutter_flow/` — FlutterFlow framework (theme, util, nav, widgets).
@@ -83,7 +91,12 @@ firebase deploy --only firestore:rules,firestore:indexes
 - `lib/backend/schema/*_record.dart` — plain Dart record models
   (`fromMap`/`fromSnapshot`/`toMap`/`copyWith`). 18 records (see §5).
 - `lib/backend/community_groups.dart` — static catalog of community "circles".
-- `lib/backend/seed_data.dart` — 6 sample doctors, auto-seeded on first dashboard load.
+- `lib/backend/seed_data.dart` — **DELETED in V3.** Client-side doctor seeding
+  was a privilege-escalation hole; provisioning is now `tool/admin.js`.
+- `lib/business/video_library.dart` — 24 verified YouTube videos.
+- `lib/business/legal_content.dart` — Privacy Policy / Terms draft text.
+- `lib/components/app_image.dart` — asset-vs-network image helper.
+- `lib/auth/role_manager.dart` — resolves clinician role from `doctors/{uid}`.
 - `lib/business/cycle_engine.dart` — pure cycle-prediction logic.
 - `lib/business/scoring_engine.dart` — onboarding assessment scoring (pure Dart).
 - `lib/business/assessment_questions.dart` — condition-specific question sets.
@@ -92,7 +105,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 - `lib/auth/auth_manager.dart` — singleton `AuthManager.instance`
   (email + Google sign-in, sign-out, password reset).
 - `lib/auth/error_mapper.dart` — Firebase auth error → user message.
-- `lib/index.dart` — barrel that exports all 19 page widgets.
+- `lib/index.dart` — barrel that exports all 24 page widgets.
 
 ### FlutterFlow patterns (important)
 - Each stateful page does:
@@ -124,7 +137,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 ---
 
-## 4. Pages (19) & routes
+## 4. Pages (24) & routes
 
 All registered in `lib/flutter_flow/nav/nav.dart` as `FFRoute(name, path, builder)`:
 
@@ -149,6 +162,11 @@ All registered in `lib/flutter_flow/nav/nav.dart` as `FFRoute(name, path, builde
 | `breathwork_guide` | `BreathworkGuide` | 4-7-8 breathing animation |
 | `mood_journal` | `MoodJournal` | Mood tab (Firestore) + Blogs tab (10 links, Material Icons) |
 | `meditation_guide` | `MeditationGuide` | Dark-themed guided meditation timer + pulsing animation |
+| `video_library` | `VideoLibrary` | 24 verified YouTube videos, condition-ordered |
+| `video_player` | `VideoPlayer` | Embedded iframe player + attribution + watch-on-YouTube |
+| `legal_document` | `LegalDocument` | Privacy / Terms, reachable signed-out (`/legal`) |
+| `doctor_dashboard` | `DoctorDashboard` | **Clinician** `/clinician/dashboard` — live queue + stats |
+| `doctor_patient_detail` | `DoctorPatientDetail` | **Clinician** `/clinician/patient` — consent-gated chart |
 
 ---
 
@@ -165,11 +183,19 @@ All registered in `lib/flutter_flow/nav/nav.dart` as `FFRoute(name, path, builde
 Subcollections (18 record classes in `lib/backend/schema/`):
 - Original: `cycles` (+flowIntensity, mood, isPeriodDay, phase), `moods`,
   `symptoms`, `sleep`, `water`, `exercises`, `journals`, `goals`
-- V2: `assessments` (OnboardingAssessmentRecord), `appointments`
-  (AppointmentRecord), `reminders` (MedicineReminderRecord),
-  `reminder_logs` (ReminderLogRecord), `habits` (HealthHabitRecord),
-  `habit_logs` (HabitLogRecord), `feedback`, `score_logs`
-- Consultation: `appointments/{id}/messages/{id}` (Firestore real-time chat)
+- V2: `assessments` (OnboardingAssessmentRecord), `reminders`
+  (MedicineReminderRecord), `reminder_logs` (ReminderLogRecord),
+  `habits` (HealthHabitRecord), `habit_logs` (HabitLogRecord),
+  `feedback`, `score_logs`
+- **V3: `consents/{doctorUid}`** — the patient's explicit, revocable grant
+  letting one clinician read their health data. Firestore rules key doctor
+  access off `exists()` of this doc, so deleting it revokes immediately.
+
+> **V3 breaking change:** appointments are NO LONGER under `users/{uid}`.
+> They moved to top-level `appointments/{id}` with `patientUid` + `doctorUid`,
+> and messages to `appointments/{id}/messages/{id}`. A doctor cannot read a
+> booking made against them if it is buried in the patient's private tree.
+> Legacy data was migrated with `node tool/admin.js migrate-appointments`.
 
 Access via helpers in `backend.dart`: `streamX`, `createX`, `updateX`,
 `deleteX`, `newXId(uid)`.
@@ -189,7 +215,7 @@ Access via helpers in `backend.dart`: `streamX`, `createX`, `updateX`,
   (12 qs), Irregular (5 qs), Unknown (8 qs). Max 7 per screen, mixing for combos.
 - `lib/business/wellness_content_catalog.dart` — 13 yoga flows (incl. 30-min
   Cycle Regularity for irregular periods), 4 guided meditations, 13 articles.
-- `lib/backend/seed_data.dart` — doctor seeding function.
+- Doctor seeding: `node tool/admin.js seed-doctors` (server-side only).
 
 ### Community (cross-user, top-level)
 - `posts/{id}` → `PostsRecord` (authorUid, authorName, authorInitials,
@@ -293,7 +319,7 @@ predicted next period). `CyclePhase` enum has `.label`, `.energyLevel`,
 
 ## 9. Current state (PRESENT)
 
-- Branch `flutterflow`; last committed HEAD = `c8ca1f1`.
+- Branch `flutterflow`. V3 work committed on `v3-clinician-security-playstore`.
 - Local uncommitted: Phases 5-12 + all additional improvements listed above.
 - `flutter analyze` = 2 issues (pre-existing FlutterFlow warnings only — baseline).
 - `flutter build web --no-tree-shake-icons` = successful.
@@ -301,7 +327,7 @@ predicted next period). `CyclePhase` enum has `.label`, `.energyLevel`,
 - Firebase Storage = NOT yet initialized (user needs Blaze plan; UPI billing issue — try debit/credit card instead).
 - `.claude/` and `.gitignore` cover local-only files.
 
-### Pages (19 total)
+### Pages (24 total)
 
 | Page | Status |
 |---|---|
@@ -327,7 +353,190 @@ predicted next period). `CyclePhase` enum has `.label`, `.energyLevel`,
 
 ---
 
+---
+
+## 9b. V3 — Doctor dashboard, security hardening, real content
+
+### Clinician surface (role-gated, same app)
+- **Role = existence of `doctors/{uid}`** keyed by auth uid. Client cannot
+  create it (`allow create: if false`), so nobody can self-promote.
+  `lib/auth/role_manager.dart` observes it; `main.dart` resolves the role
+  BEFORE refreshing the router so a clinician never flashes the patient UI.
+- Routes live under **`/clinician/`** — deliberately NOT `/doctor` because
+  `/doctor-selection` is a *patient* screen.
+- New pages: `doctor_dashboard` (live queue, stats, filters),
+  `doctor_patient_detail` (consent-gated chart: assessment, cycle, symptoms,
+  habit adherence + notes/prescription + lifecycle actions).
+- `AppBootGate` in `nav.dart` holds `/` while the role resolves.
+
+### Provisioning (server-side only)
+`lib/backend/seed_data.dart` was **deleted** — client-side doctor seeding is
+exactly the privilege-escalation hole the rules now close. Use:
+```bash
+node tool/admin.js seed-doctors        # bookable catalog profiles
+node tool/admin.js promote <email>     # make a real signed-up user a clinician
+node tool/admin.js demote <email>
+node tool/admin.js migrate-appointments
+```
+Auth reuses the Firebase CLI's own OAuth refresh token; no service-account key
+in the repo. Catalog ids (`doctor_0`…) are not auth uids, so they grant nobody
+anything — `exists(doctors/$(request.auth.uid))` can never match them.
+
+### Security fixes (all verified — see below)
+1. **Prescriptions were world-readable** to any signed-in user
+   (`storage.rules`). Now owner-only. Latent, not live: Storage was never
+   initialised, so nothing leaked.
+2. **Consultation messages were unreachable** — the rule matched two levels
+   (`users/{uid}/{col}/{doc}`) but messages sit four deep, so chat would have
+   been permission-denied in production. Recursive `{document=**}` now.
+3. **Any signed-in user could create/overwrite/delete `doctors/{id}`** —
+   i.e. grant themselves clinician privilege. Client writes forbidden.
+4. **`meta/{doc}` was world-writable.** Now read-only.
+5. **Post counters had no delta check** — `likeCount` could be set to any
+   value. Now ±1 only.
+6. Identity fields pinned to `request.auth.uid`; `role`/`isDoctor` immutable;
+   every free-text field length-capped; messages immutable; appointments
+   undeletable from a client.
+7. **Video rooms**: `meet.jit.si` rooms are public to anyone with the URL, so
+   the room name now carries 160 bits of CSPRNG entropy stored on the
+   appointment (readable only by the two participants).
+8. **Android manifest**: `allowBackup` was defaulting to true (health data
+   extractable via `adb backup`) → now false; removed
+   `requestLegacyExternalStorage`; `usesCleartextTraffic="false"`.
+
+### Verification
+```bash
+node tool/test_rules.js      # 19 rules assertions vs Google's Rules API
+~/development/flutter/bin/flutter test        # 17 business-logic tests
+```
+The same suite run against the pre-V3 rules **fails 7 of 19** — the
+vulnerabilities above were real, not theoretical.
+
+### Real content
+- `lib/business/video_library.dart` — 24 curated YouTube videos, every id
+  verified public + `playableInEmbed` via oEmbed before shipping. Played
+  in-app via `youtube_player_iframe`, always with channel attribution and a
+  "watch on YouTube" link. **Never add an id without verifying it.**
+- New pages: `video_library`, `video_player`.
+- All `dimg.dreamflow.cloud` placeholders are now **bundled assets**
+  (`assets/images/`, `assets/jsons/`) behind `lib/components/app_image.dart`,
+  which picks asset-vs-network by path prefix. Removes a third-party runtime
+  dependency with no SLA.
+- Fixed: chat consultation charged ₹200 while the UI advertised ₹300.
+- `ScoringEngine._boundMax` guards against a "24/16" style ratio if a question
+  set ever outgrows its hard-coded maximum.
+
+### Play Store readiness (V3.1)
+See `PLAY_STORE.md` for the full checklist, Data Safety answers and store copy.
+
+- **App icon** was the default Flutter logo (an automatic Play rejection).
+  Replaced with a generated brand mark in `assets/branding/`, wired through
+  `flutter_launcher_icons` (all densities + Android adaptive + iOS + web).
+  Regenerate with `dart run flutter_launcher_icons`.
+- **Community moderation** — Play requires in-app reporting *and* blocking for
+  user-generated content. Added: report sheet with five reasons writing to a
+  top-level `reports` collection, and per-user blocking at
+  `users/{uid}/blocked/{uid}` filtered client-side. `reports` is **write-only**
+  from the client — a readable queue would let an abuser check whether they had
+  been reported; a deletable one would let them erase the evidence.
+- **Account deletion** — Play requires an in-app route. Profile → "Delete my
+  account and data": type-to-confirm, wipes all 17 user subcollections in
+  paged batches, anonymises community posts rather than deleting them (so
+  other people's threads survive), then deletes the auth user. Handles
+  `requires-recent-login` by signing out with an explanatory message.
+  Appointments are deliberately retained (clinical record), but the consent
+  docs go, which cuts off clinician access immediately.
+- **Signing** — `tool/create-keystore.sh` is interactive by design: `keytool`
+  prompts for the password directly and it is never passed as an argument or
+  echoed. Run it yourself; it also verifies `key.properties` is gitignored.
+
+### Web deployment (live)
+Deployed to Firebase Hosting on the **Spark (free)** plan — billing is not
+enabled on this project, so it cannot incur charges.
+
+| URL | Google sign-in |
+|---|---|
+| **https://hertwin-wellness.firebaseapp.com** | ✅ works |
+| https://hertwin-wellness.web.app | ❌ `Error 400: redirect_uri_mismatch` |
+
+Same site on both domains. Only `firebaseapp.com` works with Google because
+there the page origin *is* the `authDomain`, so auth cookies are first-party
+and the OAuth client already lists that redirect URI. To enable `.web.app`,
+add `https://hertwin-wellness.web.app/__/auth/handler` to the OAuth 2.0 Web
+client's authorised redirect URIs in Google Cloud Console (no API for this).
+
+Redeploy: `flutter build web --release --no-tree-shake-icons && firebase deploy --only hosting`
+Take offline: `firebase hosting:disable --project hertwin-wellness`
+
+`firebase.json` sets SPA rewrites, immutable caching for hashed JS/wasm,
+`no-cache` on index.html, and security headers (HSTS, nosniff, SAMEORIGIN,
+Referrer-Policy, Permissions-Policy denying geolocation/mic/camera/payment).
+
+### Google sign-in on web — the third-party cookie problem
+`authDomain` is `hertwin-wellness.firebaseapp.com`. Whenever the app is served
+from a *different* origin (localhost, `.web.app`), Firebase's sign-in cookies
+are third-party cookies, which Chrome blocks. The popup then closes itself and
+Firebase reports **`popup-closed-by-user`** — the browser's doing, surfaced as
+the user's. Do not "fix" this by showing a cancellation message.
+
+Three mitigations, all in place:
+1. `AuthManager` falls back from popup → `signInWithRedirect` on
+   `popup-blocked` / `operation-not-supported-in-this-environment` /
+   `web-storage-unsupported` / a 90 s timeout. `main.dart` calls
+   `completePendingRedirect()` before the first frame to finish the round trip.
+   A genuine dismissal (>3 s) still reports "cancelled"; a sub-3-second close
+   is treated as the browser and falls back instead.
+2. `_firebaseOptions()` in `main.dart` pins `authDomain` to the current origin
+   when served over **https** from an origin that serves `/__/auth/*`
+   (Hosting domains, or localhost running `tool/serve_web.py`). Gated on https
+   deliberately: the auth handler forces a secure context, so doing this over
+   plain http sends the browser to `https://localhost:<port>` and yields a
+   blank page — worse than the bug.
+3. `tool/serve_web.py` reverse-proxies `/__/auth/*` and `/__/firebase/*` for
+   local dev, plus SPA fallback and no-store caching.
+
+Local review: `python3 tool/serve_web.py 5051`. Over plain http, prefer
+**email sign-in** — it needs no popup at all.
+
+### Test accounts
+| Account | Method | Role |
+|---|---|---|
+| `ultimatewarriordev@gmail.com` | password | **clinician** (Dr. Dev) |
+| `dev.singh@adypu.edu.in` | password | patient |
+| `anirudhbsb@gmail.com` | password | patient |
+| `auditorsingh48@gmail.com` | Google only | patient |
+| `watsonmateo14@gmail.com` | Google only | patient |
+
+A clinician account has **no patient surface** — the router sends it straight
+to the doctor dashboard. Use two accounts to exercise the booking loop.
+
+### CI
+`.github/workflows/build-apk.yml` builds APK + AAB on GitHub's runners, so no
+local Android SDK is needed. Signing uses repo secrets
+(`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) and
+falls back to debug signing when absent.
+
+---
+
 ## 10. Future / not yet done (FUTURE)
+
+- **Terms of Service and Privacy Policy are stubs** ("will be available
+  soon", `auth_screen_widget.dart`). Google Play **requires** a working
+  privacy-policy URL for an app handling health data. Launch blocker.
+- **Play Store signing** — the release build currently falls back to the DEBUG
+  key because `android/key.properties` does not exist. That APK installs fine
+  for demos but Play will reject it. Run `bash tool/create-keystore.sh`
+  (interactive; keytool prompts for the password directly, it is never passed
+  as an argument). See `tool/ANDROID_SETUP.md`.
+- **Community moderation queue has no reader.** Reports land in `reports/`
+  but nothing surfaces them — build an admin view or a scheduled export.
+- **Account deletion leaves the auth user** if the session is stale
+  (`requires-recent-login`); the data is deleted and the user is signed out
+  with an explanation, but the auth record needs a second sign-in to clear.
+- **`.web.app` Google sign-in** needs a redirect URI added in Cloud Console.
+- **Firebase Storage still not initialised** → profile photo and prescription
+  upload will fail until enabled in the console (needs Blaze).
+  `storage.rules` is written and ready but undeployed for the same reason.
 
 - **Firebase Storage initialization** — user must enable in Firebase Console (Blaze plan required).
 - **Community niceties:** image attachments, report/block, pagination, push notifications.

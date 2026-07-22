@@ -6,6 +6,7 @@ import '/components/interest_group/interest_group_widget.dart';
 import '/components/story_card/story_card_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -35,6 +36,11 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
   String _authorName = 'You';
   String _authorPhotoUrl = '';
 
+  /// Authors this user has blocked. Their posts are filtered out client-side —
+  /// blocking is a personal preference and must not remove content for others.
+  Set<String> _blockedUids = {};
+  StreamSubscription<Set<String>>? _blockedSub;
+
   static const List<Color> _avatarPalette = [
     Color(0xFFF3E5F5),
     Color(0xFFE1F5FE),
@@ -57,12 +63,185 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
     super.initState();
     _model = createModel(context, () => CommunityFeedModel());
     _loadAuthor();
+
+    final uid = AuthManager.instance.currentUid;
+    if (uid != null) {
+      _blockedSub = streamBlockedUids(uid).listen((blocked) {
+        if (mounted) safeSetState(() => _blockedUids = blocked);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _blockedSub?.cancel();
     _model.dispose();
     super.dispose();
+  }
+
+  /// Report / block sheet for someone else's post.
+  ///
+  /// Google Play requires both actions to be reachable in-app for any product
+  /// carrying user-generated content.
+  void _openModerationSheet(PostsRecord post) {
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null) return;
+    final theme = FlutterFlowTheme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.secondaryBackground,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.alternate,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Icon(Icons.flag_outlined, color: theme.primaryText),
+              title: Text('Report this post',
+                  style: GoogleFonts.inter(
+                      fontSize: 15, fontWeight: FontWeight.w500)),
+              subtitle: Text('Tell us what is wrong with it',
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: theme.secondaryText)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openReportSheet(post);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.block_outlined, color: theme.error),
+              title: Text('Block ${post.authorName.isEmpty ? 'this member' : post.authorName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                      fontSize: 15, fontWeight: FontWeight.w500)),
+              subtitle: Text('You will stop seeing their posts',
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: theme.secondaryText)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _confirmBlock(post);
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openReportSheet(PostsRecord post) {
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null) return;
+    final theme = FlutterFlowTheme.of(context);
+
+    const reasons = [
+      'Spam or advertising',
+      'Harassment or hate',
+      'Medical misinformation',
+      'Personal information shared',
+      'Something else',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.secondaryBackground,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text('Why are you reporting this?',
+                  style: GoogleFonts.poppins(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: theme.primaryText)),
+            ),
+            for (final reason in reasons)
+              ListTile(
+                title: Text(reason,
+                    style: GoogleFonts.inter(fontSize: 14)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  try {
+                    await reportContent(
+                      reporterUid: uid,
+                      contentType: 'post',
+                      contentId: post.id,
+                      authorUid: post.authorUid,
+                      reason: reason,
+                    );
+                    _toast('Thanks — our team will review this post.');
+                  } catch (_) {
+                    _toast('Could not send the report. Please try again.');
+                  }
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmBlock(PostsRecord post) async {
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null) return;
+    final name = post.authorName.isEmpty ? 'this member' : post.authorName;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Block $name?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        content: Text(
+            'Their posts will be hidden from your feed. You can undo this '
+            'from your profile.',
+            style: GoogleFonts.inter(fontSize: 14)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Block',
+                  style: TextStyle(
+                      color: FlutterFlowTheme.of(context).error))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await blockUser(uid, post.authorUid);
+      _toast('$name blocked.');
+    } catch (_) {
+      _toast('Could not block. Please try again.');
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _loadAuthor() async {
@@ -1036,7 +1215,10 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              var posts = snapshot.data!;
+              // Hide blocked authors before anything else renders.
+              var posts = snapshot.data!
+                  .where((p) => !_blockedUids.contains(p.authorUid))
+                  .toList();
               if (onlyLiked) {
                 return StreamBuilder<Set<String>>(
                   stream: uid == null
@@ -1121,9 +1303,12 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
           onLike: () => _toggleLike(post),
           onComment: () => _openComments(post),
           onShare: () => _sharePost(post),
+          // Your own post → delete. Someone else's → report / block.
+          // Leaving this null on other people's posts meant there was no way
+          // to report anything, which Play policy requires.
           onMore: post.authorUid == uid
               ? () => _confirmDeletePost(post)
-              : null,
+              : () => _openModerationSheet(post),
         );
       },
     );

@@ -1,5 +1,7 @@
+<!-- The applicationId/namespace is set in build.gradle (com.hertwin.wellness).
+     The legacy `package` attribute here was stale (com.mycompany.hertwinwellness)
+     and is ignored by modern AGP, so it has been removed rather than corrected. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.mycompany.hertwinwellness"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
 
@@ -8,7 +10,9 @@
         android:label="HerTwin Wellness"
         tools:replace="android:label"
         android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true">
+        android:usesCleartextTraffic="false"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
 
         <activity
             android:name=".MainActivity"

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 
 import '/auth/auth_manager.dart';
@@ -166,6 +167,120 @@ class _ProfileWidgetState extends State<ProfileWidget> {
     if (confirmed != true) return;
     await AuthManager.instance.signOut();
     if (mounted) context.goNamed(AuthScreenWidget.routeName);
+  }
+
+  /// Permanent account deletion.
+  ///
+  /// Google Play requires an in-app route to delete the account and its data
+  /// for any app that lets users create one. Deliberately two-step and
+  /// type-to-confirm: this erases every cycle log, symptom and journal entry
+  /// the user has, and none of it is recoverable.
+  Future<void> _deleteAccount() async {
+    final theme = FlutterFlowTheme.of(context);
+    final uid = AuthManager.instance.currentUid;
+    if (uid == null) return;
+
+    final confirmCtrl = TextEditingController();
+    var canDelete = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Delete your account?',
+              style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600, color: theme.error)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This permanently erases your cycle history, symptoms, mood '
+                'journal, assessments, reminders and habits. It cannot be '
+                'undone and we cannot recover it for you.',
+                style: GoogleFonts.inter(fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Your community posts stay up but are anonymised, so other '
+                'people\u{2019}s conversations are not broken.',
+                style: GoogleFonts.inter(
+                    fontSize: 12, height: 1.5, color: theme.secondaryText),
+              ),
+              const SizedBox(height: 16),
+              Text('Type DELETE to confirm',
+                  style: GoogleFonts.inter(
+                      fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: confirmCtrl,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                onChanged: (v) => setDialogState(
+                    () => canDelete = v.trim().toUpperCase() == 'DELETE'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel')),
+            TextButton(
+              onPressed:
+                  canDelete ? () => Navigator.of(ctx).pop(true) : null,
+              child: Text('Delete for ever',
+                  style: TextStyle(
+                      color: canDelete ? theme.error : theme.secondaryText)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    confirmCtrl.dispose();
+    if (confirmed != true || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: CircularProgressIndicator(color: theme.primary),
+      ),
+    );
+
+    try {
+      // Firestore data first: once the auth user is gone the rules deny
+      // every write, which would strand the health data permanently.
+      await deleteAccountData(uid);
+      await AuthManager.instance.currentUser?.delete();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      context.goNamed(AuthScreenWidget.routeName);
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      if (e.code == 'requires-recent-login') {
+        // Firebase refuses account deletion on a stale session. The data is
+        // already gone; the user signs in again to finish the job.
+        await AuthManager.instance.signOut();
+        if (!mounted) return;
+        context.goNamed(AuthScreenWidget.routeName);
+        _showMessage(
+            'Your data has been deleted. Please sign in once more to remove '
+            'the account itself.');
+      } else {
+        _showMessage('Could not delete the account. Please try again.');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showMessage('Could not delete the account. Please try again.');
+    }
   }
 
   @override
@@ -414,6 +529,25 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12.0),
+
+                  // Account deletion. Play policy requires this to be
+                  // reachable in-app, not only by emailing support.
+                  Center(
+                    child: TextButton(
+                      onPressed: _deleteAccount,
+                      child: Text(
+                        'Delete my account and data',
+                        style: GoogleFonts.inter(
+                          fontSize: 13.0,
+                          fontWeight: FontWeight.w500,
+                          color: theme.secondaryText,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8.0),
                 ],
               ),
             ),
