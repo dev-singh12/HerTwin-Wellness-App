@@ -1,3 +1,4 @@
+import '/components/app_image.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'package:flutter/material.dart';
@@ -11,12 +12,24 @@ class SocialAuthButtonWidget extends StatefulWidget {
     super.key,
     String? provider_icon,
     String? provider_name,
-  })  : this.provider_icon =
-            provider_icon ?? 'https://cdn.simpleicons.org/google/3d3d3d.svg',
+    this.enabled = true,
+    this.trailingLabel,
+  })  : this.provider_icon = provider_icon ?? AppImages.googleLogo,
         this.provider_name = provider_name ?? 'Google';
 
+  /// Bundled asset path. Icons used to be pulled from cdn.simpleicons.org at
+  /// runtime, which meant the sign-in buttons rendered blank when offline or
+  /// if that CDN was down — and it sent a request to a third party before the
+  /// user had agreed to anything.
   final String provider_icon;
   final String provider_name;
+
+  /// When false the button renders muted and non-interactive. A control that
+  /// looks live but is not is worse than no control at all.
+  final bool enabled;
+
+  /// Optional badge, e.g. "Coming soon".
+  final String? trailingLabel;
 
   @override
   State<SocialAuthButtonWidget> createState() => _SocialAuthButtonWidgetState();
@@ -46,50 +59,75 @@ class _SocialAuthButtonWidgetState extends State<SocialAuthButtonWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 56.0,
-      decoration: BoxDecoration(
-        color: FlutterFlowTheme.of(context).secondaryBackground,
-        borderRadius: BorderRadius.circular(28.0),
-        shape: BoxShape.rectangle,
-        border: Border.all(
-          color: FlutterFlowTheme.of(context).alternate,
-          width: 1.0,
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsetsDirectional.fromSTEB(24.0, 0.0, 24.0, 0.0),
+    final theme = FlutterFlowTheme.of(context);
+    final enabled = widget.enabled;
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: 'Continue with ${widget.provider_name}',
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.45,
         child: Container(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SvgPicture.network(
-                valueOrDefault<String>(
+          height: 56.0,
+          decoration: BoxDecoration(
+            color: theme.secondaryBackground,
+            borderRadius: BorderRadius.circular(28.0),
+            shape: BoxShape.rectangle,
+            border: Border.all(
+              color: theme.alternate,
+              width: 1.0,
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(24.0, 0.0, 24.0, 0.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SvgPicture.asset(
                   widget.provider_icon,
-                  'https://cdn.simpleicons.org/google/3d3d3d.svg',
+                  width: 22.0,
+                  height: 22.0,
+                  fit: BoxFit.contain,
                 ),
-                width: 22.0,
-                height: 22.0,
-                fit: BoxFit.contain,
-              ),
-              Text(
-                'Continue with ${widget.provider_name}',
-                style: FlutterFlowTheme.of(context).titleSmall.override(
+                Flexible(
+                  child: Text(
+                    'Continue with ${widget.provider_name}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.titleSmall.override(
                       font: GoogleFonts.interTight(
                         fontWeight: FontWeight.w500,
-                        fontStyle:
-                            FlutterFlowTheme.of(context).titleSmall.fontStyle,
+                        fontStyle: theme.titleSmall.fontStyle,
                       ),
-                      color: FlutterFlowTheme.of(context).primaryText,
+                      color: theme.primaryText,
                       letterSpacing: 0.0,
                       fontWeight: FontWeight.w500,
-                      fontStyle:
-                          FlutterFlowTheme.of(context).titleSmall.fontStyle,
+                      fontStyle: theme.titleSmall.fontStyle,
                     ),
-              ),
-            ].divide(SizedBox(width: 16.0)),
+                  ),
+                ),
+                if (widget.trailingLabel != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0, vertical: 3.0),
+                    decoration: BoxDecoration(
+                      color: theme.alternate,
+                      borderRadius: BorderRadius.circular(6.0),
+                    ),
+                    child: Text(
+                      widget.trailingLabel!,
+                      style: GoogleFonts.inter(
+                        fontSize: 10.0,
+                        fontWeight: FontWeight.w600,
+                        color: theme.secondaryText,
+                      ),
+                    ),
+                  ),
+              ].divide(SizedBox(width: 12.0)),
+            ),
           ),
         ),
       ),

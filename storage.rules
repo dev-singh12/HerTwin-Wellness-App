@@ -1,13 +1,62 @@
 rules_version = '2';
 
+// =============================================================================
+// HerTwin Wellness — Cloud Storage security rules
+//
+// The previous rules granted `allow read: if request.auth != null` across the
+// whole users/{uid}/** tree. That meant ANY signed-in account could read ANY
+// other user's uploaded prescriptions and medical reports just by knowing or
+// guessing a path. Medical documents are now owner-only.
+//
+// Note on doctor access: Storage rules cannot query Firestore, so a doctor's
+// consent cannot be evaluated here. Instead the patient shares the Firebase
+// download URL (which carries an unguessable access token) into the
+// appointment document, where Firestore rules gate who can read it.
+// =============================================================================
+
 service firebase.storage {
   match /b/{bucket}/o {
-    // Users can read/write their own profile photos and prescriptions
-    match /users/{uid}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid
-                   && request.resource.size < 10 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+
+    function isSignedIn() {
+      return request.auth != null;
     }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Reject anything that is not a bounded, genuinely-image upload. Checking
+    // contentType alone is not enough — an unbounded upload is a billing
+    // attack even when the type is right.
+    function isBoundedImage() {
+      return request.resource != null
+        && request.resource.contentType.matches('image/(jpeg|png|webp|heic)')
+        && request.resource.size > 0
+        && request.resource.size < 8 * 1024 * 1024;
+    }
+
+    // Profile photos are shown next to community posts, so any signed-in user
+    // may read them. Only the owner may write.
+    match /users/{uid}/profile.jpg {
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid) && isBoundedImage();
+      allow delete: if isOwner(uid);
+    }
+
+    // Prescriptions and medical reports — OWNER ONLY. Never world-readable.
+    match /users/{uid}/prescriptions/{fileName} {
+      allow read: if isOwner(uid);
+      allow write: if isOwner(uid) && isBoundedImage();
+      allow delete: if isOwner(uid);
+    }
+
+    // Default for everything else under a user's folder: private to the owner.
+    match /users/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid);
+      allow write: if isOwner(uid) && isBoundedImage();
+      allow delete: if isOwner(uid);
+    }
+
+    // Any path outside users/** is denied by default.
   }
 }

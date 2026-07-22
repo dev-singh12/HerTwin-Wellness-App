@@ -58,7 +58,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB8_xh48Ve0dDWoVExi8dFK6yd3XqamkZ0',
-    appId: '1:1056460985345:android:9d87cb5ad7d6dceecddc00',
+    appId: '1:1056460985345:android:d3f91174ea31c71ccddc00',
     messagingSenderId: '1056460985345',
     projectId: 'hertwin-wellness',
     storageBucket: 'hertwin-wellness.firebasestorage.app',

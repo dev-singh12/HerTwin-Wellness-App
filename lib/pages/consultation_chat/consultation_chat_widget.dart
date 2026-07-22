@@ -1,3 +1,4 @@
+import '/components/app_image.dart';
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
 import '/components/chat_bubble/chat_bubble_widget.dart';
@@ -6,7 +7,6 @@ import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -96,24 +96,39 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
     final controller = _model.textFieldModel.inputTextController;
     final text = (controller?.text ?? '').trim();
     if (text.isEmpty) return;
+    if (text.length > kMaxChatMessageLength) {
+      _showMessage('Message is too long (max $kMaxChatMessageLength characters).');
+      return;
+    }
     controller?.clear();
-    sendChatMessage(uid, _appointment!.id,
+    sendChatMessage(
+      _appointment!.id,
       senderUid: uid,
-      senderName: 'You',
+      senderName: AuthManager.instance.currentUser?.displayName ?? 'Patient',
       content: text,
-    );
+    ).catchError((_) {
+      if (mounted) _showMessage('Message failed to send. Check your connection.');
+    });
   }
 
   void _launchVideoCall() async {
-    if (_appointment == null) {
+    final appt = _appointment;
+    if (appt == null) {
       _showMessage('No active appointment found.');
       return;
     }
-    final url = Uri.parse(jitsiRoomUrl(_appointment!.id));
+    // The room name carries a booking-time secret, so it is only derivable by
+    // someone who can already read the appointment document.
+    final link = appt.meetingLink;
+    if (link == null || link.isEmpty) {
+      _showMessage('This consultation is chat-only.');
+      return;
+    }
+    final url = Uri.parse(link);
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      _showMessage('Could not open video call.');
+      if (mounted) _showMessage('Could not open video call.');
     }
   }
 
@@ -170,13 +185,15 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                                 borderRadius: BorderRadius.circular(9999.0),
                                 shape: BoxShape.rectangle,
                               ),
-                              child: CachedNetworkImage(
-                                fadeInDuration: Duration(milliseconds: 0),
-                                fadeOutDuration: Duration(milliseconds: 0),
-                                imageUrl:
-                                    'https://dimg.dreamflow.cloud/v1/image/professional%20female%20doctor%20portrait%2C%20soft%20lighting',
+                              // The booked doctor's own photo when Storage has
+                              // one, otherwise the bundled portrait.
+                              child: AppImage(
+                                (_appointment?.doctorPhotoUrl ?? '')
+                                        .trim()
+                                        .isNotEmpty
+                                    ? _appointment!.doctorPhotoUrl
+                                    : AppImages.doctorPortrait,
                                 fit: BoxFit.cover,
-                                alignment: Alignment(0.0, 0.0),
                               ),
                             ),
                           ),
@@ -303,8 +320,7 @@ class _ConsultationChatWidgetState extends State<ConsultationChatWidget> {
                       ),
                     )
                   : StreamBuilder<List<Map<String, dynamic>>>(
-                      stream: streamChatMessages(
-                          AuthManager.instance.currentUid!, _appointment!.id),
+                      stream: streamChatMessages(_appointment!.id),
                       builder: (context, snapshot) {
                         final messages = snapshot.data ?? [];
                         if (messages.isEmpty) {

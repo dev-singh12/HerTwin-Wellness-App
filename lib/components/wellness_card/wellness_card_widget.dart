@@ -1,7 +1,7 @@
+import '/components/app_image.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'dart:ui';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'wellness_card_model.dart';
@@ -16,8 +16,7 @@ class WellnessCardWidget extends StatefulWidget {
     String? title,
     String? type,
   })  : this.duration = duration ?? '15 mins',
-        this.img_desc = img_desc ??
-            'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20yoga%20in%20a%20sunlit%20minimal%20room',
+        this.img_desc = img_desc ?? AppImages.yogaSunlitRoom,
         this.subtitle = subtitle ??
             'Boost energy and flexibility during your follicular phase.',
         this.title = title ?? 'Follicular Flow Yoga',
@@ -82,16 +81,14 @@ class _WellnessCardWidgetState extends State<WellnessCardWidget> {
                   child: Stack(
                     alignment: AlignmentDirectional(-1.0, -1.0),
                     children: [
-                      CachedNetworkImage(
-                        fadeInDuration: Duration(milliseconds: 0),
-                        fadeOutDuration: Duration(milliseconds: 0),
-                        imageUrl: valueOrDefault<String>(
+                      AppImage(
+                        valueOrDefault<String>(
                           widget.img_desc,
-                          'https://dimg.dreamflow.cloud/v1/image/woman%20doing%20yoga%20in%20a%20sunlit%20minimal%20room',
+                          AppImages.yogaSunlitRoom,
                         ),
                         height: 160.0,
+                        width: double.infinity,
                         fit: BoxFit.cover,
-                        alignment: Alignment(0.0, 0.0),
                       ),
                       Align(
                         alignment: AlignmentDirectional(0.0, 1.0),

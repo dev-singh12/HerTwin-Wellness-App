@@ -82,3 +82,13 @@ app.*.map.json
 #ios/Runner/GoogleService-Info.plist
 .firebase/
 firebase-debug.log
+
+# Android release signing material. A leaked upload keystore lets anyone
+# publish an update to your app, and it cannot be rotated once Play has it.
+*.keystore
+**/android/app/upload-keystore.jks
+**/android/app/*.jks
+
+# Personal AI tooling config. Contains absolute paths to this machine's node
+# install, so committing it would break for anyone else who clones the repo.
+.mcp.json

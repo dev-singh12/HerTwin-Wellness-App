@@ -1,3 +1,4 @@
+import '/components/app_image.dart';
 import 'dart:async';
 
 import '/auth/auth_manager.dart';
@@ -99,8 +100,8 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                           mainAxisAlignment: MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Lottie.network(
-                              'https://dimg.dreamflow.cloud/v1/lottie/success+checkmark+animation+with+floating+petals',
+                            Lottie.asset(
+                              AppImages.lottieSuccessCheckmark,
                               width: 120.0,
                               height: 120.0,
                               fit: BoxFit.contain,

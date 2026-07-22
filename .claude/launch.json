@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hertwin-web",
+      "runtimeExecutable": "/Users/devkumarsingh/development/flutter/bin/flutter",
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5050",
+        "--web-hostname",
+        "localhost"
+      ],
+      "port": 5050
+    },
+    {
+      "name": "hertwin-web-release",
+      "runtimeExecutable": "/usr/bin/python3",
+      "runtimeArgs": ["tool/serve_web.py", "5051"],
+      "port": 5051
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import '/components/app_image.dart';
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
 import '/components/button/button_widget.dart';
@@ -54,17 +55,13 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
       );
   }
 
-  void _showInfo(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: FlutterFlowTheme.of(context).secondary,
-        ),
+  /// Opens the bundled privacy policy or terms. These are in-app pages rather
+  /// than external links so they are readable offline and before sign-in —
+  /// the user is being asked to agree to them right here.
+  void _openLegal(String docType) => context.pushNamed(
+        LegalDocumentWidget.routeName,
+        extra: {'docType': docType},
       );
-  }
 
   Future<void> _handleGoogleSignIn() async {
     if (_googleLoading) return;
@@ -202,23 +199,37 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                           ),
                         ].divide(SizedBox(height: 16.0)),
                       ),
-                      Container(
-                        height: 80.0,
-                      ),
-                      Container(
-                        height: 240.0,
-                        alignment: AlignmentDirectional(0.0, 0.0),
-                        child: Lottie.network(
-                          'https://dimg.dreamflow.cloud/v1/lottie/soft+blooming+flower+animation+in+pastel+colors',
-                          width: 240.0,
-                          height: 240.0,
-                          fit: BoxFit.contain,
-                          animate: true,
-                        ),
-                      ),
-                      Container(
-                        height: 40.0,
-                      ),
+                      // Artwork scales with the viewport instead of being
+                      // pinned at 240px, which was cramped on an iPhone SE
+                      // and sparse on a Pro Max.
+                      Builder(builder: (context) {
+                        final shortestSide =
+                            MediaQuery.sizeOf(context).shortestSide;
+                        final art = (shortestSide * 0.52).clamp(140.0, 260.0);
+                        final gap =
+                            (MediaQuery.sizeOf(context).height * 0.04)
+                                .clamp(16.0, 56.0);
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(height: gap),
+                            SizedBox(
+                              height: art,
+                              // Bundled, not fetched: the sign-in screen must
+                              // render even with no network, and it is the
+                              // first thing a new user ever sees.
+                              child: Lottie.asset(
+                                AppImages.lottieBloomingFlower,
+                                width: art,
+                                height: art,
+                                fit: BoxFit.contain,
+                                animate: true,
+                              ),
+                            ),
+                            SizedBox(height: gap),
+                          ],
+                        );
+                      }),
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.start,
@@ -227,20 +238,18 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                           Stack(
                             alignment: AlignmentDirectional.center,
                             children: [
-                              Opacity(
-                                opacity: _googleLoading ? 0.5 : 1.0,
-                                child: InkWell(
-                                  onTap: _googleLoading
-                                      ? null
-                                      : _handleGoogleSignIn,
-                                  child: wrapWithModel(
-                                    model: _model.socialAuthButtonModel1,
-                                    updateCallback: () => safeSetState(() {}),
-                                    child: SocialAuthButtonWidget(
-                                      provider_icon:
-                                          'https://cdn.simpleicons.org/google/3d3d3d.svg',
-                                      provider_name: 'Google',
-                                    ),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(28.0),
+                                onTap: _googleLoading
+                                    ? null
+                                    : _handleGoogleSignIn,
+                                child: wrapWithModel(
+                                  model: _model.socialAuthButtonModel1,
+                                  updateCallback: () => safeSetState(() {}),
+                                  child: SocialAuthButtonWidget(
+                                    provider_icon: AppImages.googleLogo,
+                                    provider_name: 'Google',
+                                    enabled: !_googleLoading,
                                   ),
                                 ),
                               ),
@@ -255,19 +264,11 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                                 ),
                             ],
                           ),
-                          InkWell(
-                            onTap: () => _showError(
-                                'Apple sign-in is coming soon.'),
-                            child: wrapWithModel(
-                              model: _model.socialAuthButtonModel2,
-                              updateCallback: () => safeSetState(() {}),
-                              child: SocialAuthButtonWidget(
-                                provider_icon:
-                                    'https://cdn.simpleicons.org/apple/3d3d3d.svg',
-                                provider_name: 'Apple',
-                              ),
-                            ),
-                          ),
+                          // Sign in with Apple was removed rather than left as
+                          // a button that looked live and raised an error.
+                          // It needs a paid Apple Developer account plus a
+                          // Service ID and signing key; add it back alongside
+                          // the real integration, not before.
                           InkWell(
                             onTap: () => showEmailAuthSheet(context),
                             child: wrapWithModel(
@@ -332,9 +333,15 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               InkWell(
-                                onTap: () => _showInfo(
-                                    'Terms of Service will be available soon.'),
-                                child: Text(
+                                borderRadius: BorderRadius.circular(8.0),
+                                onTap: () => _openLegal('terms'),
+                                child: Padding(
+                                  // Text links were labelSmall with no
+                                  // padding — far under the 48dp minimum
+                                  // touch target.
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8.0, vertical: 12.0),
+                                  child: Text(
                                 'Terms of Service',
                                 style: FlutterFlowTheme.of(context)
                                     .labelSmall
@@ -359,6 +366,7 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                                       decoration: TextDecoration.underline,
                                       lineHeight: 1.2,
                                     ),
+                                  ),
                                 ),
                               ),
                               Text(
@@ -387,9 +395,12 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                                     ),
                               ),
                               InkWell(
-                                onTap: () => _showInfo(
-                                    'Privacy Policy will be available soon.'),
-                                child: Text(
+                                borderRadius: BorderRadius.circular(8.0),
+                                onTap: () => _openLegal('privacy'),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8.0, vertical: 12.0),
+                                  child: Text(
                                 'Privacy Policy',
                                 style: FlutterFlowTheme.of(context)
                                     .labelSmall
@@ -414,9 +425,10 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                                       decoration: TextDecoration.underline,
                                       lineHeight: 1.2,
                                     ),
+                                  ),
                                 ),
                               ),
-                            ].divide(SizedBox(width: 8.0)),
+                            ].divide(SizedBox(width: 4.0)),
                           ),
                         ].divide(SizedBox(height: 4.0)),
                       ),

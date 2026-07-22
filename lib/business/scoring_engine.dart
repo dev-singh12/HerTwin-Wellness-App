@@ -45,6 +45,15 @@ class ScoringResult {
 class ScoringEngine {
   const ScoringEngine._();
 
+  /// Guards the declared maximum against the score actually accumulated.
+  ///
+  /// Each scorer hard-codes the maximum for its question set. If the question
+  /// set and that constant ever drift apart, the honest failure is a slightly
+  /// generous denominator — not a ratio like "24/16" shown to a user, or a
+  /// health score computed from a negative headroom.
+  static int _boundMax(int declaredMax, int total) =>
+      total > declaredMax ? total : declaredMax;
+
   static ScoringResult compute({
     required String conditionType,
     required Map<String, int> answers,
@@ -71,8 +80,8 @@ class ScoringEngine {
 
   static ScoringResult _scorePcosPcod(Map<String, int> answers, int age) {
     final total = answers.values.fold<int>(0, (s, v) => s + v);
-    // Q9 optional (only if age >= 22), so max is 16 or 18
-    final maxScore = answers.containsKey('pcos_q9') ? 18 : 16;
+    // Q9 optional (only if age >= 22), so max is 16 or 18.
+    final maxScore = _boundMax(answers.containsKey('pcos_q9') ? 18 : 16, total);
 
     String label;
     String severity;
@@ -141,7 +150,7 @@ class ScoringEngine {
   static ScoringResult _scorePmsPmdd(
       Map<String, int> answers, String conditionType) {
     final total = answers.values.fold<int>(0, (s, v) => s + v);
-    const maxScore = 36;
+    final maxScore = _boundMax(36, total);
 
     String label;
     String severity;
@@ -225,7 +234,7 @@ class ScoringEngine {
 
   static ScoringResult _scoreIrregular(Map<String, int> answers) {
     final total = answers.values.fold<int>(0, (s, v) => s + v);
-    const maxScore = 12;
+    final maxScore = _boundMax(12, total);
 
     String label;
     String severity;
@@ -290,7 +299,7 @@ class ScoringEngine {
     final healthScore = (70 - total).clamp(30, 85);
     return ScoringResult(
       totalScore: total,
-      maxScore: 24,
+      maxScore: _boundMax(24, total),
       healthScore: healthScore,
       diagnosisLabel: 'Mixed Symptoms Pattern',
       severityLevel: total > 12 ? 'moderate' : 'mild',
