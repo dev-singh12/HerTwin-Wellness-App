@@ -226,6 +226,13 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
             appointmentId: params.getParam('appointmentId', ParamType.String),
           ),
         ),
+        FFRoute(
+          name: DoctorChatWidget.routeName,
+          path: DoctorChatWidget.routePath,
+          builder: (context, params) => DoctorChatWidget(
+            appointmentId: params.getParam('appointmentId', ParamType.String),
+          ),
+        ),
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );
 

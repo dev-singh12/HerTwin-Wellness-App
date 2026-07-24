@@ -57,6 +57,25 @@ class UsersRecord {
   final DateTime? lastLogDate;
   final String? prescriptionUrl;
 
+  /// Age to use anywhere age is displayed or denormalized.
+  ///
+  /// Prefers an explicitly-stored [age], and falls back to computing it from
+  /// [dateOfBirth] when only that was captured — so a patient who gave their
+  /// birth date but not their age is not shown as ageless. Returns null when
+  /// neither is known, which every display site must treat as "omit".
+  int? get effectiveAge {
+    if (age != null && age! > 0) return age;
+    final dob = dateOfBirth;
+    if (dob == null) return null;
+    final now = DateTime.now();
+    var years = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      years--;
+    }
+    return years > 0 && years < 130 ? years : null;
+  }
+
   factory UsersRecord.fromMap(Map<String, dynamic> data, String id) =>
       UsersRecord(
         uid: (data['uid'] as String?) ?? id,

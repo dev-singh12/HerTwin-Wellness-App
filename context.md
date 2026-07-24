@@ -81,7 +81,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 ### Directory layout
 - `lib/pages/<page>/` — one folder per screen: `<page>_widget.dart` (UI +
   logic) and `<page>_model.dart` (FlutterFlow model: child component models,
-  controllers, `initState`/`dispose`). 24 pages (see §4).
+  controllers, `initState`/`dispose`). 25 pages (see §4).
 - `lib/components/<name>/` — 23 reusable FlutterFlow visual components
   (`*_widget.dart` + `*_model.dart`).
 - `lib/flutter_flow/` — FlutterFlow framework (theme, util, nav, widgets).
@@ -105,7 +105,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 - `lib/auth/auth_manager.dart` — singleton `AuthManager.instance`
   (email + Google sign-in, sign-out, password reset).
 - `lib/auth/error_mapper.dart` — Firebase auth error → user message.
-- `lib/index.dart` — barrel that exports all 24 page widgets.
+- `lib/index.dart` — barrel that exports all 25 page widgets.
 
 ### FlutterFlow patterns (important)
 - Each stateful page does:
@@ -137,7 +137,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 ---
 
-## 4. Pages (24) & routes
+## 4. Pages (25) & routes
 
 All registered in `lib/flutter_flow/nav/nav.dart` as `FFRoute(name, path, builder)`:
 
@@ -165,8 +165,9 @@ All registered in `lib/flutter_flow/nav/nav.dart` as `FFRoute(name, path, builde
 | `video_library` | `VideoLibrary` | 24 verified YouTube videos, condition-ordered |
 | `video_player` | `VideoPlayer` | Embedded iframe player + attribution + watch-on-YouTube |
 | `legal_document` | `LegalDocument` | Privacy / Terms, reachable signed-out (`/legal`) |
-| `doctor_dashboard` | `DoctorDashboard` | **Clinician** `/clinician/dashboard` — live queue + stats |
-| `doctor_patient_detail` | `DoctorPatientDetail` | **Clinician** `/clinician/patient` — consent-gated chart |
+| `doctor_dashboard` | `DoctorDashboard` | **Clinician** `/clinician/dashboard` — patient-first (Patients/Schedule segments), health snapshots, appointment buckets |
+| `doctor_patient_detail` | `DoctorPatientDetail` | **Clinician** `/clinician/patient` — consent-gated chart + Message action |
+| `doctor_chat` | `DoctorChat` | **Clinician** `/clinician/chat` — doctor side of the consultation thread |
 
 ---
 
@@ -327,7 +328,7 @@ predicted next period). `CyclePhase` enum has `.label`, `.energyLevel`,
 - Firebase Storage = NOT yet initialized (user needs Blaze plan; UPI billing issue — try debit/credit card instead).
 - `.claude/` and `.gitignore` cover local-only files.
 
-### Pages (24 total)
+### Pages (25 total)
 
 | Page | Status |
 |---|---|

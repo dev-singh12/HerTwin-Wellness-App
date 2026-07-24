@@ -302,7 +302,7 @@ class _DoctorSelectionWidgetState extends State<DoctorSelectionWidget> {
                             patientUid: uid,
                             patientName: patient?.displayName ?? '',
                             patientPhotoUrl: patient?.photoUrl ?? '',
-                            patientAge: patient?.age ?? 0,
+                            patientAge: patient?.effectiveAge ?? 0,
                             patientCondition: patient?.conditionType ?? '',
                             patientSeverity: patient?.latestSeverityLabel ?? '',
                             patientScore: patient?.healthVitalityScore ?? 0,

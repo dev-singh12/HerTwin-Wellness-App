@@ -2,6 +2,7 @@ import '/backend/backend.dart';
 import '/business/cycle_engine.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/index.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -219,7 +220,7 @@ class _DoctorPatientDetailWidgetState extends State<DoctorPatientDetailWidget> {
                 _TopBar(
                   title: a.patientName.isEmpty ? 'Patient' : a.patientName,
                   subtitle: [
-                    if (a.patientAge > 0) '${a.patientAge} yrs',
+                    if (a.hasAge) a.ageLabel,
                     if (a.patientCondition.isNotEmpty)
                       a.patientCondition.toUpperCase(),
                     if (a.patientSeverity.isNotEmpty) a.patientSeverity,
@@ -256,6 +257,10 @@ class _DoctorPatientDetailWidgetState extends State<DoctorPatientDetailWidget> {
                         onComplete: () => _setStatus(a, 'completed'),
                         onNotes: () => _openNotesSheet(a),
                         onVideo: () => _openVideo(a),
+                        onMessage: () => context.pushNamed(
+                          DoctorChatWidget.routeName,
+                          extra: {'appointmentId': a.id},
+                        ),
                       ),
                     ],
                   ),
@@ -767,6 +772,7 @@ class _ActionBar extends StatelessWidget {
     required this.onComplete,
     required this.onNotes,
     required this.onVideo,
+    required this.onMessage,
   });
 
   final AppointmentRecord appointment;
@@ -774,6 +780,7 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback onComplete;
   final VoidCallback onNotes;
   final VoidCallback onVideo;
+  final VoidCallback onMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -783,6 +790,19 @@ class _ActionBar extends StatelessWidget {
 
     return Column(
       children: [
+        // Messaging is always available, even after the visit is closed —
+        // follow-up questions do not stop when the consultation is marked
+        // complete.
+        SizedBox(
+          width: double.infinity,
+          child: _ActionButton(
+            label: 'Message patient',
+            icon: Icons.forum_rounded,
+            filled: true,
+            onTap: onMessage,
+          ),
+        ),
+        const SizedBox(height: 10),
         if (!done)
           Row(
             children: [

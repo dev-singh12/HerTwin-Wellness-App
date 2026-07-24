@@ -39,3 +39,4 @@ export '/pages/doctor_dashboard/doctor_dashboard_widget.dart'
     show DoctorDashboardWidget;
 export '/pages/doctor_patient_detail/doctor_patient_detail_widget.dart'
     show DoctorPatientDetailWidget;
+export '/pages/doctor_chat/doctor_chat_widget.dart' show DoctorChatWidget;

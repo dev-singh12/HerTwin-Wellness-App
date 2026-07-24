@@ -84,6 +84,14 @@ class AppointmentRecord {
   bool get isActive => status == 'booked' || status == 'ongoing';
   bool get isVideo => consultationType == 'video';
 
+  /// Whether a real age was captured. Age is denormalized as 0 when unknown,
+  /// so display sites gate on this rather than repeating `patientAge > 0` — one
+  /// source of truth keeps the dashboard card and the chart in sync.
+  bool get hasAge => patientAge > 0;
+
+  /// Formatted age label, e.g. "24 yrs". Only meaningful when [hasAge].
+  String get ageLabel => '$patientAge yrs';
+
   String get patientInitials {
     final parts = patientName.split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.length >= 2) {

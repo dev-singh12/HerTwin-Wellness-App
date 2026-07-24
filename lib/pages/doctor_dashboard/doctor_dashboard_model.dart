@@ -3,8 +3,8 @@ import 'doctor_dashboard_widget.dart' show DoctorDashboardWidget;
 import 'package:flutter/material.dart';
 
 class DoctorDashboardModel extends FlutterFlowModel<DoctorDashboardWidget> {
-  /// 'today' | 'upcoming' | 'completed'
-  String selectedFilter = 'today';
+  /// 'patients' | 'schedule'
+  String segment = 'patients';
 
   @override
   void initState(BuildContext context) {}

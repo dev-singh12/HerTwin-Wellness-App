@@ -12,9 +12,15 @@ export 'doctor_dashboard_model.dart';
 
 /// The clinician's home screen.
 ///
-/// Every number and row here comes from live Firestore: appointments booked
-/// against this doctor's uid. There is no seeded or placeholder state — an
-/// empty queue renders as an empty queue.
+/// Everything here is live: appointments booked against this doctor's uid. The
+/// screen is deliberately patient-first — a doctor thinks in patients, not
+/// calendar slots — with a Schedule view behind it.
+///
+/// Bucketing matters. An earlier version filtered to Today/Upcoming/Completed,
+/// which meant a booking that was made, whose time passed, and which was never
+/// marked complete fell through every filter and became invisible. Here such
+/// bookings surface under "Needs review", so a patient can never silently
+/// disappear from their own doctor's queue.
 class DoctorDashboardWidget extends StatefulWidget {
   const DoctorDashboardWidget({super.key});
 
@@ -47,23 +53,76 @@ class _DoctorDashboardWidgetState extends State<DoctorDashboardWidget> {
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
-  List<AppointmentRecord> _filter(List<AppointmentRecord> all) {
-    switch (_model.selectedFilter) {
-      case 'today':
-        return all.where((a) => _isToday(a.scheduledAt) && a.isActive).toList();
-      case 'upcoming':
-        return all
-            .where((a) =>
-                a.isActive &&
-                a.scheduledAt != null &&
-                a.scheduledAt!.isAfter(DateTime.now()) &&
-                !_isToday(a.scheduledAt))
-            .toList();
-      case 'completed':
-        return all.where((a) => a.status == 'completed').toList();
-      default:
-        return all;
+  /// One representative appointment per patient — the soonest active one, or
+  /// failing that the most recent — so the Patients list shows each person
+  /// once with their most relevant visit.
+  List<AppointmentRecord> _latestPerPatient(List<AppointmentRecord> all) {
+    final byPatient = <String, AppointmentRecord>{};
+    for (final a in all) {
+      final existing = byPatient[a.patientUid];
+      if (existing == null) {
+        byPatient[a.patientUid] = a;
+        continue;
+      }
+      // Prefer an active appointment; among same activeness, prefer the one
+      // scheduled soonest to now.
+      final aScore = _relevance(a);
+      final eScore = _relevance(existing);
+      if (aScore > eScore) byPatient[a.patientUid] = a;
     }
+    final list = byPatient.values.toList()
+      ..sort((a, b) => _relevance(b).compareTo(_relevance(a)));
+    return list;
+  }
+
+  double _relevance(AppointmentRecord a) {
+    // Active outranks closed; nearer-to-now outranks distant.
+    final base = a.isActive ? 1e12 : 0.0;
+    final t = a.scheduledAt?.millisecondsSinceEpoch.toDouble() ?? 0;
+    return base - (DateTime.now().millisecondsSinceEpoch - t).abs();
+  }
+
+  ({
+    List<AppointmentRecord> review,
+    List<AppointmentRecord> today,
+    List<AppointmentRecord> upcoming,
+    List<AppointmentRecord> completed,
+  }) _buckets(List<AppointmentRecord> all) {
+    final now = DateTime.now();
+    final review = <AppointmentRecord>[];
+    final today = <AppointmentRecord>[];
+    final upcoming = <AppointmentRecord>[];
+    final completed = <AppointmentRecord>[];
+
+    for (final a in all) {
+      if (a.status == 'completed' || a.status == 'cancelled') {
+        completed.add(a);
+      } else if (_isToday(a.scheduledAt)) {
+        today.add(a);
+      } else if (a.scheduledAt != null && a.scheduledAt!.isAfter(now)) {
+        upcoming.add(a);
+      } else {
+        // Active but its slot is in the past (or unscheduled) — needs a
+        // decision, and must never be hidden.
+        review.add(a);
+      }
+    }
+
+    int bySoonest(AppointmentRecord a, AppointmentRecord b) =>
+        (a.scheduledAt ?? DateTime(2100))
+            .compareTo(b.scheduledAt ?? DateTime(2100));
+    review.sort(bySoonest);
+    today.sort(bySoonest);
+    upcoming.sort(bySoonest);
+    completed.sort((a, b) => (b.scheduledAt ?? DateTime(1970))
+        .compareTo(a.scheduledAt ?? DateTime(1970)));
+
+    return (
+      review: review,
+      today: today,
+      upcoming: upcoming,
+      completed: completed
+    );
   }
 
   Future<void> _signOut() async {
@@ -74,7 +133,7 @@ class _DoctorDashboardWidgetState extends State<DoctorDashboardWidget> {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Sign out?',
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        content: Text('You will need to sign in again to see your queue.',
+        content: Text('You will need to sign in again to see your patients.',
             style: GoogleFonts.inter(fontSize: 14)),
         actions: [
           TextButton(
@@ -83,8 +142,7 @@ class _DoctorDashboardWidgetState extends State<DoctorDashboardWidget> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: Text('Sign out',
-                  style: TextStyle(
-                      color: FlutterFlowTheme.of(context).error))),
+                  style: TextStyle(color: FlutterFlowTheme.of(context).error))),
         ],
       ),
     );
@@ -92,6 +150,16 @@ class _DoctorDashboardWidgetState extends State<DoctorDashboardWidget> {
     RoleManager.instance.clear();
     await AuthManager.instance.signOut();
   }
+
+  void _openChart(AppointmentRecord a) => context.pushNamed(
+        DoctorPatientDetailWidget.routeName,
+        extra: {'appointmentId': a.id},
+      );
+
+  void _openChat(AppointmentRecord a) => context.pushNamed(
+        DoctorChatWidget.routeName,
+        extra: {'appointmentId': a.id},
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -119,20 +187,9 @@ class _DoctorDashboardWidgetState extends State<DoctorDashboardWidget> {
             }
 
             final all = snapshot.data!;
-            final todayCount =
-                all.where((a) => _isToday(a.scheduledAt) && a.isActive).length;
-            final upcomingCount = all
-                .where((a) =>
-                    a.isActive &&
-                    a.scheduledAt != null &&
-                    a.scheduledAt!.isAfter(DateTime.now()))
-                .length;
-            final completedCount =
-                all.where((a) => a.status == 'completed').length;
-            final patientCount =
-                all.map((a) => a.patientUid).toSet().length;
-
-            final visible = _filter(all);
+            final buckets = _buckets(all);
+            final patients = _latestPerPatient(all);
+            final patientCount = patients.length;
 
             return CustomScrollView(
               slivers: [
@@ -151,81 +208,69 @@ class _DoctorDashboardWidgetState extends State<DoctorDashboardWidget> {
                       children: [
                         Expanded(
                             child: _StatCard(
+                                label: 'Patients',
+                                value: '$patientCount',
+                                icon: Icons.people_outline_rounded,
+                                tint: const Color(0xFFB39DDB))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: _StatCard(
                                 label: 'Today',
-                                value: '$todayCount',
+                                value: '${buckets.today.length}',
                                 icon: Icons.today_rounded,
                                 tint: theme.primary)),
                         const SizedBox(width: 10),
                         Expanded(
                             child: _StatCard(
                                 label: 'Upcoming',
-                                value: '$upcomingCount',
+                                value: '${buckets.upcoming.length}',
                                 icon: Icons.schedule_rounded,
                                 tint: theme.secondary)),
                         const SizedBox(width: 10),
                         Expanded(
                             child: _StatCard(
-                                label: 'Done',
-                                value: '$completedCount',
-                                icon: Icons.check_circle_outline_rounded,
-                                tint: const Color(0xFF7BC47F))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _StatCard(
-                                label: 'Patients',
-                                value: '$patientCount',
-                                icon: Icons.people_outline_rounded,
-                                tint: const Color(0xFFB39DDB))),
+                                label: 'To review',
+                                value: '${buckets.review.length}',
+                                icon: Icons.error_outline_rounded,
+                                tint: const Color(0xFFE8A13A))),
                       ],
                     ),
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                    child: Row(
-                      children: [
-                        _FilterChip(
-                            label: 'Today',
-                            active: _model.selectedFilter == 'today',
-                            onTap: () => safeSetState(
-                                () => _model.selectedFilter = 'today')),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                            label: 'Upcoming',
-                            active: _model.selectedFilter == 'upcoming',
-                            onTap: () => safeSetState(
-                                () => _model.selectedFilter = 'upcoming')),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                            label: 'Completed',
-                            active: _model.selectedFilter == 'completed',
-                            onTap: () => safeSetState(
-                                () => _model.selectedFilter = 'completed')),
-                      ],
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+                    child: _Segmented(
+                      value: _model.segment,
+                      onChanged: (s) =>
+                          safeSetState(() => _model.segment = s),
                     ),
                   ),
                 ),
-                if (visible.isEmpty)
+                if (all.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
-                    child: _EmptyQueue(filter: _model.selectedFilter),
+                    child: _EmptyState(
+                      icon: Icons.people_outline_rounded,
+                      message:
+                          'No patients yet.\nBookings made with you appear here.',
+                    ),
                   )
-                else
+                else if (_model.segment == 'patients')
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
                     sliver: SliverList.separated(
-                      itemCount: visible.length,
+                      itemCount: patients.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) => _AppointmentCard(
-                        appointment: visible[i],
-                        onTap: () => context.pushNamed(
-                          DoctorPatientDetailWidget.routeName,
-                          extra: {'appointmentId': visible[i].id},
-                        ),
+                      itemBuilder: (context, i) => _PatientCard(
+                        appointment: patients[i],
+                        onChart: () => _openChart(patients[i]),
+                        onChat: () => _openChat(patients[i]),
                       ),
                     ),
-                  ),
+                  )
+                else
+                  ..._scheduleSlivers(buckets),
               ],
             );
           },
@@ -233,8 +278,48 @@ class _DoctorDashboardWidgetState extends State<DoctorDashboardWidget> {
       ),
     );
   }
+
+  List<Widget> _scheduleSlivers(
+    ({
+      List<AppointmentRecord> review,
+      List<AppointmentRecord> today,
+      List<AppointmentRecord> upcoming,
+      List<AppointmentRecord> completed,
+    }) b,
+  ) {
+    final sections = <Widget>[];
+
+    void addSection(String title, Color tint, List<AppointmentRecord> items) {
+      if (items.isEmpty) return;
+      sections.add(SliverToBoxAdapter(
+        child: _BucketHeader(title: title, count: items.length, tint: tint),
+      ));
+      sections.add(SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        sliver: SliverList.separated(
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, i) => _AppointmentRow(
+            appointment: items[i],
+            onChart: () => _openChart(items[i]),
+            onChat: () => _openChat(items[i]),
+          ),
+        ),
+      ));
+    }
+
+    addSection('Needs review', const Color(0xFFE8A13A), b.review);
+    addSection('Today', FlutterFlowTheme.of(context).primary, b.today);
+    addSection('Upcoming', FlutterFlowTheme.of(context).secondary, b.upcoming);
+    addSection('Past & completed', const Color(0xFF9E9E9E), b.completed);
+
+    sections.add(const SliverToBoxAdapter(child: SizedBox(height: 24)));
+    return sections;
+  }
 }
 
+// ---------------------------------------------------------------------------
+// Header + stats
 // ---------------------------------------------------------------------------
 
 class _Header extends StatelessWidget {
@@ -290,21 +375,9 @@ class _Header extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: photoUrl,
                     fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Center(
-                      child: Text(_initials,
-                          style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: theme.primaryText)),
-                    ),
+                    errorWidget: (_, __, ___) => _initialsBadge(theme),
                   )
-                : Center(
-                    child: Text(_initials,
-                        style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: theme.primaryText)),
-                  ),
+                : _initialsBadge(theme),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -338,6 +411,14 @@ class _Header extends StatelessWidget {
       ),
     );
   }
+
+  Widget _initialsBadge(FlutterFlowTheme theme) => Center(
+        child: Text(_initials,
+            style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: theme.primaryText)),
+      );
 }
 
 class _StatCard extends StatelessWidget {
@@ -357,7 +438,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
       decoration: BoxDecoration(
         color: theme.secondaryBackground,
         borderRadius: BorderRadius.circular(16),
@@ -375,179 +456,381 @@ class _StatCard extends StatelessWidget {
           Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                  fontSize: 11, color: theme.secondaryText)),
+                  fontSize: 10.5, color: theme.secondaryText)),
         ],
       ),
     );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
+class _Segmented extends StatelessWidget {
+  const _Segmented({required this.value, required this.onChanged});
 
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
+  final String value;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? theme.primary : theme.secondaryBackground,
-          borderRadius: BorderRadius.circular(50),
-          border:
-              Border.all(color: active ? theme.primary : theme.alternate),
+    Widget seg(String key, String label, IconData icon) {
+      final active = value == key;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => onChanged(key),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: active ? theme.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: 16,
+                    color: active ? Colors.white : theme.secondaryText),
+                const SizedBox(width: 6),
+                Text(label,
+                    style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: active ? Colors.white : theme.secondaryText)),
+              ],
+            ),
+          ),
         ),
-        child: Text(label,
-            style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: active ? Colors.white : theme.secondaryText)),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.secondaryBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.alternate),
+      ),
+      child: Row(
+        children: [
+          seg('patients', 'Patients', Icons.people_alt_rounded),
+          seg('schedule', 'Schedule', Icons.event_note_rounded),
+        ],
       ),
     );
   }
 }
 
-class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard({required this.appointment, required this.onTap});
+// ---------------------------------------------------------------------------
+// Patients tab
+// ---------------------------------------------------------------------------
+
+class _PatientCard extends StatelessWidget {
+  const _PatientCard({
+    required this.appointment,
+    required this.onChart,
+    required this.onChat,
+  });
 
   final AppointmentRecord appointment;
-  final VoidCallback onTap;
+  final VoidCallback onChart;
+  final VoidCallback onChat;
 
-  static const _statusColors = <String, Color>{
-    'booked': Color(0xFF9FA8DA),
-    'ongoing': Color(0xFFF9CF58),
-    'completed': Color(0xFF7BC47F),
-    'cancelled': Color(0xFFBDBDBD),
-  };
+  Color _scoreColor(int score) {
+    if (score >= 70) return const Color(0xFF7BC47F);
+    if (score >= 45) return const Color(0xFFE8A13A);
+    return const Color(0xFFE0736F);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
     final a = appointment;
-    final statusColor = _statusColors[a.status] ?? theme.secondaryText;
-    final time = a.scheduledAt != null
+    final when = a.scheduledAt != null
         ? DateFormat('d MMM, h:mm a').format(a.scheduledAt!)
         : 'Not scheduled';
 
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.secondaryBackground,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.alternate),
+      ),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Vitality score ring — the single most useful at-a-glance
+              // health signal, so it leads.
+              _ScoreRing(
+                score: a.patientScore,
+                color: _scoreColor(a.patientScore),
+                initials: a.patientInitials,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(a.patientName.isEmpty ? 'Patient' : a.patientName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: theme.primaryText)),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (a.patientCondition.isNotEmpty)
+                          _Tag(
+                              text: a.patientCondition.toUpperCase(),
+                              color: theme.primary),
+                        if (a.patientSeverity.isNotEmpty)
+                          _Tag(
+                              text: a.patientSeverity,
+                              color: theme.secondary),
+                        if (a.hasAge)
+                          _Tag(text: a.ageLabel, color: theme.secondaryText),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              _StatusPill(status: a.status),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(a.isVideo ? Icons.videocam_outlined : Icons.chat_bubble_outline,
+                  size: 14, color: theme.secondaryText),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(when,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                        fontSize: 12, color: theme.secondaryText)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _CardButton(
+                  label: 'View chart',
+                  icon: Icons.assignment_outlined,
+                  filled: false,
+                  onTap: onChart,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _CardButton(
+                  label: 'Message',
+                  icon: Icons.forum_outlined,
+                  filled: true,
+                  onTap: onChat,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreRing extends StatelessWidget {
+  const _ScoreRing({
+    required this.score,
+    required this.color,
+    required this.initials,
+  });
+
+  final int score;
+  final Color color;
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: CircularProgressIndicator(
+              value: (score.clamp(0, 100)) / 100,
+              strokeWidth: 4,
+              backgroundColor: theme.alternate,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          if (score > 0)
+            Text('$score',
+                style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: theme.primaryText))
+          else
+            Text(initials,
+                style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: theme.primaryText)),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Schedule tab
+// ---------------------------------------------------------------------------
+
+class _BucketHeader extends StatelessWidget {
+  const _BucketHeader({
+    required this.title,
+    required this.count,
+    required this.tint,
+  });
+
+  final String title;
+  final int count;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          Container(width: 8, height: 8,
+              decoration: BoxDecoration(color: tint, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text(title,
+              style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: theme.primaryText)),
+          const SizedBox(width: 6),
+          Text('$count',
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: theme.secondaryText)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppointmentRow extends StatelessWidget {
+  const _AppointmentRow({
+    required this.appointment,
+    required this.onChart,
+    required this.onChat,
+  });
+
+  final AppointmentRecord appointment;
+  final VoidCallback onChart;
+  final VoidCallback onChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final a = appointment;
+    final when = a.scheduledAt != null
+        ? DateFormat('EEE d MMM, h:mm a').format(a.scheduledAt!)
+        : 'Not scheduled';
+
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      onTap: onChart,
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: theme.secondaryBackground,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: theme.alternate),
         ),
-        child: Column(
+        child: Row(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: theme.secondary.withValues(alpha: 0.20),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(a.patientInitials,
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.secondary.withValues(alpha: 0.18),
+              ),
+              alignment: Alignment.center,
+              child: Text(a.patientInitials,
+                  style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: theme.primaryText)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(a.patientName.isEmpty ? 'Patient' : a.patientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: theme.primaryText)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 2),
+                  Row(
                     children: [
-                      Text(
-                          a.patientName.isEmpty
-                              ? 'Patient'
-                              : a.patientName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: theme.primaryText)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(
-                              a.isVideo
-                                  ? Icons.videocam_outlined
-                                  : Icons.chat_bubble_outline,
-                              size: 13,
-                              color: theme.secondaryText),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(time,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: theme.secondaryText)),
-                          ),
-                        ],
+                      Icon(
+                          a.isVideo
+                              ? Icons.videocam_outlined
+                              : Icons.chat_bubble_outline,
+                          size: 12,
+                          color: theme.secondaryText),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(when,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                                fontSize: 11.5, color: theme.secondaryText)),
                       ),
                     ],
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: Text(a.status,
-                      style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor)),
-                ),
-              ],
-            ),
-            if (a.patientCondition.isNotEmpty ||
-                a.patientSeverity.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  if (a.patientCondition.isNotEmpty)
-                    _Tag(
-                        text: a.patientCondition.toUpperCase(),
-                        color: theme.primary),
-                  if (a.patientSeverity.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    _Tag(text: a.patientSeverity, color: theme.secondary),
-                  ],
-                  const Spacer(),
-                  if (a.patientAge > 0)
-                    Text('${a.patientAge} yrs',
-                        style: GoogleFonts.inter(
-                            fontSize: 11, color: theme.secondaryText)),
                 ],
               ),
-            ],
+            ),
+            IconButton(
+              tooltip: 'Message',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.forum_outlined, size: 20, color: theme.primary),
+              onPressed: onChat,
+            ),
           ],
         ),
       ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Small shared widgets
+// ---------------------------------------------------------------------------
 
 class _Tag extends StatelessWidget {
   const _Tag({required this.text, required this.color});
@@ -560,42 +843,106 @@ class _Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(text,
           style: GoogleFonts.inter(
-              fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+              fontSize: 10.5, fontWeight: FontWeight.w600, color: color)),
     );
   }
 }
 
-class _EmptyQueue extends StatelessWidget {
-  const _EmptyQueue({required this.filter});
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.status});
 
-  final String filter;
+  final String status;
+
+  static const _colors = <String, Color>{
+    'booked': Color(0xFF9FA8DA),
+    'ongoing': Color(0xFFE8A13A),
+    'completed': Color(0xFF7BC47F),
+    'cancelled': Color(0xFFBDBDBD),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colors[status] ?? FlutterFlowTheme.of(context).secondaryText;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(50),
+      ),
+      child: Text(status,
+          style: GoogleFonts.inter(
+              fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+    );
+  }
+}
+
+class _CardButton extends StatelessWidget {
+  const _CardButton({
+    required this.label,
+    required this.icon,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool filled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
-    final message = switch (filter) {
-      'today' => 'No consultations scheduled for today.',
-      'upcoming' => 'Nothing booked ahead yet.',
-      'completed' => 'No completed consultations yet.',
-      _ => 'Nothing here yet.',
-    };
+    return SizedBox(
+      height: 44,
+      child: ElevatedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon,
+            size: 16, color: filled ? Colors.white : theme.primaryText),
+        label: Text(label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: filled ? Colors.white : theme.primaryText)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: filled ? theme.primary : theme.secondaryBackground,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: filled ? theme.primary : theme.alternate),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.event_available_outlined,
-              size: 48, color: theme.secondaryText.withValues(alpha: 0.4)),
+          Icon(icon, size: 48, color: theme.secondaryText.withValues(alpha: 0.4)),
           const SizedBox(height: 12),
           Text(message,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                  fontSize: 14, color: theme.secondaryText)),
+              style: GoogleFonts.inter(fontSize: 14, color: theme.secondaryText)),
         ],
       ),
     );
@@ -619,7 +966,7 @@ class _ErrorState extends StatelessWidget {
             Icon(Icons.cloud_off_rounded,
                 size: 44, color: theme.secondaryText.withValues(alpha: 0.5)),
             const SizedBox(height: 12),
-            Text("Couldn't load your queue.",
+            Text("Couldn't load your patients.",
                 style: GoogleFonts.inter(
                     fontSize: 14, color: theme.secondaryText)),
             const SizedBox(height: 12),

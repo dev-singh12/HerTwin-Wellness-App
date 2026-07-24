@@ -7,12 +7,39 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:her_twin_wellness/backend/schema/users_record.dart';
 import 'package:her_twin_wellness/business/cycle_engine.dart';
 import 'package:her_twin_wellness/business/scoring_engine.dart';
 import 'package:her_twin_wellness/business/video_library.dart';
 import 'package:her_twin_wellness/business/wellness_content_catalog.dart';
 
 void main() {
+  group('UsersRecord.effectiveAge', () {
+    test('prefers an explicit age', () {
+      final u = UsersRecord(uid: 'x', age: 27);
+      expect(u.effectiveAge, 27);
+    });
+
+    test('derives age from date of birth when age is unset', () {
+      final dob = DateTime.now().subtract(const Duration(days: 365 * 30 + 8));
+      final u = UsersRecord(uid: 'x', dateOfBirth: dob);
+      expect(u.effectiveAge, 30);
+    });
+
+    test('is null when neither age nor DOB is known', () {
+      // This is the "testing" patient's real state — no age, no DOB. The
+      // doctor cards must omit the age tag rather than show "0 yrs".
+      final u = UsersRecord(uid: 'x');
+      expect(u.effectiveAge, isNull);
+    });
+
+    test('rejects nonsense (future DOB, absurd age)', () {
+      final future = UsersRecord(
+          uid: 'x', dateOfBirth: DateTime.now().add(const Duration(days: 400)));
+      expect(future.effectiveAge, isNull);
+    });
+  });
+
   group('ScoringEngine', () {
     test('PCOS: a low total scores as PCOD, not full PCOS', () {
       final result = ScoringEngine.compute(
