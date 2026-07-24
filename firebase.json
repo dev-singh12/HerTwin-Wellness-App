@@ -21,7 +21,15 @@
     ],
     "headers": [
       {
+        "comment": "Flutter's main.dart.js / flutter_bootstrap.js are NOT content-hashed — their filenames never change across builds. Caching them 'immutable' made every deploy invisible to returning browsers for a year. 'no-cache' forces an ETag revalidation (a cheap 304 when unchanged), so deploys always land.",
         "source": "**/*.@(js|wasm)",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "comment": "CanvasKit ships engine-versioned files under canvaskit/, safe to cache long. This override wins over the no-cache rule above for these paths.",
+        "source": "/canvaskit/**",
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
         ]
