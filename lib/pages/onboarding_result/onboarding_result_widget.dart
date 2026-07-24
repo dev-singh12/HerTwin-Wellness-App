@@ -529,15 +529,25 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                           mainAxisAlignment: MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
+                            // Primary CTA out of the results screen: book the
+                            // free first consultation. The score is only useful
+                            // if it leads somewhere — this is that step.
                             InkWell(
-                              onTap: () => context
-                                  .goNamed(HomeDashboardWidget.routeName),
+                              onTap: () => context.pushNamed(
+                                DoctorSelectionWidget.routeName,
+                                extra: {'appointmentType': 'free'},
+                              ),
                               child: wrapWithModel(
                                 model: _model.buttonModel1,
                                 updateCallback: () => safeSetState(() {}),
                                 child: ButtonWidget(
-                                  content: 'Enter My Dashboard',
-                                  icon_present: false,
+                                  content: 'Book your free appointment now',
+                                  icon: Icon(
+                                    Icons.event_available_rounded,
+                                    color: FlutterFlowTheme.of(context).onPrimary,
+                                    size: 18.0,
+                                  ),
+                                  icon_present: true,
                                   icon_end_present: false,
                                   color:
                                       FlutterFlowTheme.of(context).secondaryText,
@@ -546,6 +556,28 @@ class _OnboardingResultWidgetState extends State<OnboardingResultWidget> {
                                   full_width: true,
                                   loading: false,
                                   disabled: false,
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () => context
+                                  .goNamed(HomeDashboardWidget.routeName),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                width: double.infinity,
+                                height: 48,
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Skip for now — go to dashboard',
+                                  style: FlutterFlowTheme.of(context)
+                                      .titleSmall
+                                      .override(
+                                        font: GoogleFonts.interTight(
+                                            fontWeight: FontWeight.w600),
+                                        color: FlutterFlowTheme.of(context)
+                                            .secondaryText,
+                                        letterSpacing: 0.0,
+                                      ),
                                 ),
                               ),
                             ),

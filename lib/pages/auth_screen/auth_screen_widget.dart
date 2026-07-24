@@ -1,14 +1,12 @@
 import '/components/app_image.dart';
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
-import '/components/button/button_widget.dart';
 import '/components/social_auth_button/social_auth_button_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lottie/lottie.dart';
 import 'auth_screen_model.dart';
 import 'email_auth_sheet.dart';
 export 'auth_screen_model.dart';
@@ -97,349 +95,212 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
       child: Scaffold(
         key: scaffoldKey,
         backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-        body: SingleChildScrollView(
-          primary: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(32.0, 24.0, 32.0, 24.0),
-                child: Container(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        height: 60.0,
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 100.0,
-                            height: 100.0,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  FlutterFlowTheme.of(context).primary,
-                                  FlutterFlowTheme.of(context).secondary
-                                ],
-                                stops: [0.0, 1.0],
-                                begin: AlignmentDirectional(1.0, -1.0),
-                                end: AlignmentDirectional(-1.0, 1.0),
-                              ),
-                              borderRadius: BorderRadius.circular(32.0),
-                              shape: BoxShape.rectangle,
-                            ),
-                            alignment: AlignmentDirectional(0.0, 0.0),
-                            child: Icon(
-                              Icons.auto_awesome_rounded,
-                              color: FlutterFlowTheme.of(context).onSurface,
-                              size: 48.0,
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                'HerTwin',
-                                style: FlutterFlowTheme.of(context)
-                                    .headlineLarge
-                                    .override(
-                                      font: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FontWeight.bold,
-                                        fontStyle: FlutterFlowTheme.of(context)
-                                            .headlineLarge
-                                            .fontStyle,
-                                      ),
-                                      color: FlutterFlowTheme.of(context)
-                                          .primaryText,
-                                      letterSpacing: 0.0,
-                                      fontWeight: FontWeight.bold,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .headlineLarge
-                                          .fontStyle,
-                                      lineHeight: 1.2,
-                                    ),
-                              ),
-                              Text(
-                                'Your AI-powered hormone companion',
-                                textAlign: TextAlign.center,
-                                style: FlutterFlowTheme.of(context)
-                                    .bodyMedium
-                                    .override(
-                                      font: GoogleFonts.inter(
-                                        fontWeight: FlutterFlowTheme.of(context)
-                                            .bodyMedium
-                                            .fontWeight,
-                                        fontStyle: FlutterFlowTheme.of(context)
-                                            .bodyMedium
-                                            .fontStyle,
-                                      ),
-                                      color: FlutterFlowTheme.of(context)
-                                          .secondaryText,
-                                      letterSpacing: 0.0,
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .bodyMedium
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .bodyMedium
-                                          .fontStyle,
-                                      lineHeight: 1.5,
-                                    ),
-                              ),
-                            ].divide(SizedBox(height: 4.0)),
-                          ),
-                        ].divide(SizedBox(height: 16.0)),
-                      ),
-                      // Artwork scales with the viewport instead of being
-                      // pinned at 240px, which was cramped on an iPhone SE
-                      // and sparse on a Pro Max.
-                      Builder(builder: (context) {
-                        final shortestSide =
-                            MediaQuery.sizeOf(context).shortestSide;
-                        final art = (shortestSide * 0.52).clamp(140.0, 260.0);
-                        final gap =
-                            (MediaQuery.sizeOf(context).height * 0.04)
-                                .clamp(16.0, 56.0);
-                        return Column(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              primary: false,
+              padding:
+                  const EdgeInsetsDirectional.fromSTEB(28.0, 32.0, 28.0, 24.0),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Brand wordmark. Loads the real PNG when it exists,
+                    // otherwise degrades to a gradient badge + "HerTwin" so
+                    // the very first screen a user sees is never empty.
+                    Builder(builder: (context) {
+                      final theme = FlutterFlowTheme.of(context);
+                      final logoW = (MediaQuery.sizeOf(context).width * 0.6)
+                          .clamp(200.0, 300.0);
+                      return AppImage(
+                        AppImages.logoWordmark,
+                        width: logoW,
+                        fit: BoxFit.contain,
+                        fallback: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(height: gap),
-                            SizedBox(
-                              height: art,
-                              // Bundled, not fetched: the sign-in screen must
-                              // render even with no network, and it is the
-                              // first thing a new user ever sees.
-                              child: Lottie.asset(
-                                AppImages.lottieBloomingFlower,
-                                width: art,
-                                height: art,
-                                fit: BoxFit.contain,
-                                animate: true,
+                            Container(
+                              width: 96.0,
+                              height: 96.0,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [theme.primary, theme.secondary],
+                                  begin: const AlignmentDirectional(1.0, -1.0),
+                                  end: const AlignmentDirectional(-1.0, 1.0),
+                                ),
+                                borderRadius: BorderRadius.circular(28.0),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.spa_rounded,
+                                  color: Colors.white, size: 44.0),
+                            ),
+                            const SizedBox(height: 16.0),
+                            Text(
+                              'HerTwin',
+                              style: theme.headlineLarge.override(
+                                font: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.bold),
+                                color: theme.primaryText,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
                               ),
                             ),
-                            SizedBox(height: gap),
                           ],
-                        );
-                      }),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Stack(
-                            alignment: AlignmentDirectional.center,
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 16.0),
+                    Text(
+                      'Your body, understood.',
+                      textAlign: TextAlign.center,
+                      style: FlutterFlowTheme.of(context).bodyMedium.override(
+                            font: GoogleFonts.inter(),
+                            color: FlutterFlowTheme.of(context).secondaryText,
+                            letterSpacing: 0.2,
+                            lineHeight: 1.5,
+                          ),
+                    ),
+                    const SizedBox(height: 40.0),
+                    // Google — bordered white button (unchanged behaviour).
+                    Stack(
+                      alignment: AlignmentDirectional.center,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(28.0),
+                          onTap: _googleLoading ? null : _handleGoogleSignIn,
+                          child: wrapWithModel(
+                            model: _model.socialAuthButtonModel1,
+                            updateCallback: () => safeSetState(() {}),
+                            child: SocialAuthButtonWidget(
+                              provider_icon: AppImages.googleLogo,
+                              provider_name: 'Google',
+                              enabled: !_googleLoading,
+                            ),
+                          ),
+                        ),
+                        if (_googleLoading)
+                          SizedBox(
+                            width: 22.0,
+                            height: 22.0,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: FlutterFlowTheme.of(context).primary,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14.0),
+                    // Email — filled primary button, same 56px pill as Google
+                    // so the two read as a matched pair instead of a strong
+                    // button beside a weak text link.
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(28.0),
+                        onTap: () => showEmailAuthSheet(context),
+                        child: Container(
+                          height: 56.0,
+                          decoration: BoxDecoration(
+                            color: FlutterFlowTheme.of(context).primary,
+                            borderRadius: BorderRadius.circular(28.0),
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              InkWell(
-                                borderRadius: BorderRadius.circular(28.0),
-                                onTap: _googleLoading
-                                    ? null
-                                    : _handleGoogleSignIn,
-                                child: wrapWithModel(
-                                  model: _model.socialAuthButtonModel1,
-                                  updateCallback: () => safeSetState(() {}),
-                                  child: SocialAuthButtonWidget(
-                                    provider_icon: AppImages.googleLogo,
-                                    provider_name: 'Google',
-                                    enabled: !_googleLoading,
-                                  ),
-                                ),
+                              Icon(Icons.mail_outline_rounded,
+                                  color: FlutterFlowTheme.of(context).onPrimary,
+                                  size: 20.0),
+                              const SizedBox(width: 12.0),
+                              Text(
+                                'Continue with Email',
+                                style: FlutterFlowTheme.of(context)
+                                    .titleSmall
+                                    .override(
+                                      font: GoogleFonts.interTight(
+                                          fontWeight: FontWeight.w600),
+                                      color: FlutterFlowTheme.of(context)
+                                          .onPrimary,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.0,
+                                    ),
                               ),
-                              if (_googleLoading)
-                                SizedBox(
-                                  width: 22.0,
-                                  height: 22.0,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: FlutterFlowTheme.of(context).primary,
-                                  ),
-                                ),
                             ],
                           ),
-                          // Sign in with Apple was removed rather than left as
-                          // a button that looked live and raised an error.
-                          // It needs a paid Apple Developer account plus a
-                          // Service ID and signing key; add it back alongside
-                          // the real integration, not before.
-                          InkWell(
-                            onTap: () => showEmailAuthSheet(context),
-                            child: wrapWithModel(
-                              model: _model.buttonModel,
-                              updateCallback: () => safeSetState(() {}),
-                              child: ButtonWidget(
-                                content: 'Sign in with Email',
-                                icon: Icon(
-                                  Icons.mail_outline_rounded,
-                                  color: FlutterFlowTheme.of(context).primary,
-                                  size: 16.0,
-                                ),
-                                icon_present: true,
-                                icon_end_present: false,
-                                color:
-                                    FlutterFlowTheme.of(context).secondaryText,
-                                variant: 'ghost',
-                                size: 'medium',
-                                full_width: false,
-                                loading: false,
-                                disabled: false,
-                              ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32.0),
+                    Text(
+                      'By continuing, you agree to our',
+                      textAlign: TextAlign.center,
+                      style: FlutterFlowTheme.of(context).labelSmall.override(
+                            font: GoogleFonts.plusJakartaSans(),
+                            color: FlutterFlowTheme.of(context).secondaryText,
+                            letterSpacing: 0.0,
+                          ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.max,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8.0),
+                          onTap: () => _openLegal('terms'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0, vertical: 10.0),
+                            child: Text(
+                              'Terms of Service',
+                              style: FlutterFlowTheme.of(context)
+                                  .labelSmall
+                                  .override(
+                                    font: GoogleFonts.plusJakartaSans(),
+                                    color:
+                                        FlutterFlowTheme.of(context).primary,
+                                    letterSpacing: 0.0,
+                                    decoration: TextDecoration.underline,
+                                  ),
                             ),
                           ),
-                        ].divide(SizedBox(height: 16.0)),
-                      ),
-                      Container(
-                        height: 40.0,
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            'By continuing, you agree to our',
+                        ),
+                        Text('•',
                             style: FlutterFlowTheme.of(context)
                                 .labelSmall
                                 .override(
-                                  font: GoogleFonts.plusJakartaSans(
-                                    fontWeight: FlutterFlowTheme.of(context)
-                                        .labelSmall
-                                        .fontWeight,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .labelSmall
-                                        .fontStyle,
-                                  ),
-                                  color: FlutterFlowTheme.of(context).onSurface,
+                                  font: GoogleFonts.plusJakartaSans(),
+                                  color: FlutterFlowTheme.of(context)
+                                      .secondaryText,
                                   letterSpacing: 0.0,
-                                  fontWeight: FlutterFlowTheme.of(context)
-                                      .labelSmall
-                                      .fontWeight,
-                                  fontStyle: FlutterFlowTheme.of(context)
-                                      .labelSmall
-                                      .fontStyle,
-                                  lineHeight: 1.2,
-                                ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.max,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              InkWell(
-                                borderRadius: BorderRadius.circular(8.0),
-                                onTap: () => _openLegal('terms'),
-                                child: Padding(
-                                  // Text links were labelSmall with no
-                                  // padding — far under the 48dp minimum
-                                  // touch target.
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8.0, vertical: 12.0),
-                                  child: Text(
-                                'Terms of Service',
-                                style: FlutterFlowTheme.of(context)
-                                    .labelSmall
-                                    .override(
-                                      font: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontWeight,
-                                        fontStyle: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontStyle,
-                                      ),
-                                      color: FlutterFlowTheme.of(context)
-                                          .secondaryText,
-                                      letterSpacing: 0.0,
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontStyle,
-                                      decoration: TextDecoration.underline,
-                                      lineHeight: 1.2,
-                                    ),
+                                )),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8.0),
+                          onTap: () => _openLegal('privacy'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0, vertical: 10.0),
+                            child: Text(
+                              'Privacy Policy',
+                              style: FlutterFlowTheme.of(context)
+                                  .labelSmall
+                                  .override(
+                                    font: GoogleFonts.plusJakartaSans(),
+                                    color:
+                                        FlutterFlowTheme.of(context).primary,
+                                    letterSpacing: 0.0,
+                                    decoration: TextDecoration.underline,
                                   ),
-                                ),
-                              ),
-                              Text(
-                                '•',
-                                style: FlutterFlowTheme.of(context)
-                                    .labelSmall
-                                    .override(
-                                      font: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontWeight,
-                                        fontStyle: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontStyle,
-                                      ),
-                                      color: FlutterFlowTheme.of(context)
-                                          .onSurface,
-                                      letterSpacing: 0.0,
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontStyle,
-                                      lineHeight: 1.2,
-                                    ),
-                              ),
-                              InkWell(
-                                borderRadius: BorderRadius.circular(8.0),
-                                onTap: () => _openLegal('privacy'),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8.0, vertical: 12.0),
-                                  child: Text(
-                                'Privacy Policy',
-                                style: FlutterFlowTheme.of(context)
-                                    .labelSmall
-                                    .override(
-                                      font: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontWeight,
-                                        fontStyle: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .fontStyle,
-                                      ),
-                                      color: FlutterFlowTheme.of(context)
-                                          .secondaryText,
-                                      letterSpacing: 0.0,
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontStyle,
-                                      decoration: TextDecoration.underline,
-                                      lineHeight: 1.2,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ].divide(SizedBox(width: 4.0)),
+                            ),
                           ),
-                        ].divide(SizedBox(height: 4.0)),
-                      ),
-                      Container(
-                        height: 20.0,
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

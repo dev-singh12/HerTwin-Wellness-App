@@ -55,12 +55,14 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
   StreamSubscription<List<MoodsRecord>>? _moodsSub;
   StreamSubscription<List<MedicineReminderRecord>>? _remindersSub;
   StreamSubscription<List<ReminderLogRecord>>? _reminderLogsSub;
+  StreamSubscription<List<AppointmentRecord>>? _apptsSub;
 
   UsersRecord? _user;
   CycleStatus _status = CycleEngine.compute(const []);
   MoodsRecord? _todayMood;
   List<MedicineReminderRecord> _reminders = [];
   List<ReminderLogRecord> _reminderLogs = [];
+  List<AppointmentRecord> _appointments = [];
   bool _loading = true;
 
   @override
@@ -120,6 +122,12 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
     _reminderLogsSub = streamReminderLogs(uid, todayStr).listen((logs) {
       if (mounted) safeSetState(() => _reminderLogs = logs);
     });
+    // Doctor-written care plan. Firestore is realtime, so the dashboard
+    // updates on its own the moment a clinician ends a consultation and saves
+    // the prescription — no polling, no delay.
+    _apptsSub = streamPatientAppointments(uid).listen((list) {
+      if (mounted) safeSetState(() => _appointments = list);
+    });
   }
 
   @override
@@ -129,9 +137,167 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
     _moodsSub?.cancel();
     _remindersSub?.cancel();
     _reminderLogsSub?.cancel();
+    _apptsSub?.cancel();
     _model.dispose();
 
     super.dispose();
+  }
+
+  /// The patient-facing view of what a doctor prescribed. Renders nothing
+  /// until a consultation is completed with notes or a prescription, then
+  /// appears at the top of the dashboard. This is the "reflected on the
+  /// dashboard as prescribed by the doctor" half of the consultation loop.
+  Widget _buildCarePlanCard() {
+    final theme = FlutterFlowTheme.of(context);
+    // _appointments is newest-first (streamPatientAppointments orders by
+    // createdAt DESC), so the first match is the most recent care plan.
+    AppointmentRecord? plan;
+    for (final a in _appointments) {
+      final hasGuidance = (a.prescriptionText ?? '').trim().isNotEmpty ||
+          (a.doctorNotes ?? '').trim().isNotEmpty;
+      if (a.status == 'completed' && hasGuidance) {
+        plan = a;
+        break;
+      }
+    }
+    if (plan == null) return const SizedBox.shrink();
+
+    final rx = (plan.prescriptionText ?? '').trim();
+    final notes = (plan.doctorNotes ?? '').trim();
+    final when = plan.completedAt ?? plan.scheduledAt;
+    final subtitle = [
+      if (plan.doctorName.isNotEmpty) plan.doctorName,
+      if (when != null) DateFormat('d MMM').format(when),
+    ].join('  •  ');
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(24.0, 0.0, 24.0, 20.0),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: theme.secondaryBackground,
+          borderRadius: BorderRadius.circular(24.0),
+          border: Border.all(color: theme.primary.withAlpha(70), width: 1.0),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42.0,
+                    height: 42.0,
+                    decoration: BoxDecoration(
+                      color: theme.primary.withAlpha(30),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(Icons.medical_information_rounded,
+                        color: theme.primary, size: 22.0),
+                  ),
+                  const SizedBox(width: 12.0),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Your care plan',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15.0,
+                                fontWeight: FontWeight.w700,
+                                color: theme.primaryText)),
+                        if (subtitle.isNotEmpty)
+                          Text(subtitle,
+                              style: GoogleFonts.inter(
+                                  fontSize: 12.0, color: theme.secondaryText)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10.0, vertical: 4.0),
+                    decoration: BoxDecoration(
+                      color: theme.success.withAlpha(45),
+                      borderRadius: BorderRadius.circular(20.0),
+                    ),
+                    child: Text('Prescribed',
+                        style: GoogleFonts.inter(
+                            fontSize: 11.0,
+                            fontWeight: FontWeight.w700,
+                            color: theme.success)),
+                  ),
+                ],
+              ),
+              if (rx.isNotEmpty) ...[
+                const SizedBox(height: 16.0),
+                _carePlanBlock(
+                    theme, Icons.medication_rounded, 'Prescription', rx),
+              ],
+              if (notes.isNotEmpty) ...[
+                const SizedBox(height: 12.0),
+                _carePlanBlock(theme, Icons.sticky_note_2_rounded,
+                    'Doctor\'s notes', notes),
+              ],
+              const SizedBox(height: 16.0),
+              InkWell(
+                borderRadius: BorderRadius.circular(8.0),
+                onTap: () =>
+                    context.pushNamed(ConsultationChatWidget.routeName),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Open consultation',
+                          style: GoogleFonts.inter(
+                              fontSize: 13.0,
+                              fontWeight: FontWeight.w600,
+                              color: theme.primary)),
+                      const SizedBox(width: 4.0),
+                      Icon(Icons.arrow_forward_rounded,
+                          size: 16.0, color: theme.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _carePlanBlock(
+      FlutterFlowTheme theme, IconData icon, String label, String body) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14.0),
+      decoration: BoxDecoration(
+        color: theme.primaryBackground,
+        borderRadius: BorderRadius.circular(14.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16.0, color: theme.secondaryText),
+              const SizedBox(width: 6.0),
+              Text(label,
+                  style: GoogleFonts.inter(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w600,
+                      color: theme.secondaryText)),
+            ],
+          ),
+          const SizedBox(height: 6.0),
+          Text(body,
+              style: GoogleFonts.inter(
+                  fontSize: 14.0, height: 1.5, color: theme.primaryText)),
+        ],
+      ),
+    );
   }
 
   String get _firstName {
@@ -486,6 +652,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                               ),
                             ),
                           ),
+                          _buildCarePlanCard(),
                           Padding(
                             padding: EdgeInsetsDirectional.fromSTEB(
                                 24.0, 0.0, 24.0, 0.0),

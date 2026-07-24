@@ -184,40 +184,129 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
     final questions = _questionsForCondition();
     if (questions.isEmpty) return const SizedBox.shrink();
 
+    final answered = questions.where((q) => _answers.containsKey(q.id)).length;
+    final total = questions.length;
+    final done = answered == total;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        Text('Health Assessment',
-            style: theme.titleMedium.override(
-              font: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
-              letterSpacing: 0.0,
-            )),
-        const SizedBox(height: 4),
-        Text('Answer these to get a personalized wellness score.',
-            style: GoogleFonts.inter(fontSize: 13, color: theme.secondaryText)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Health Assessment',
+                      style: theme.titleMedium.override(
+                        font: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w600),
+                        letterSpacing: 0.0,
+                      )),
+                  const SizedBox(height: 2),
+                  Text('Answer these to get a personalized wellness score.',
+                      style: GoogleFonts.inter(
+                          fontSize: 13, color: theme.secondaryText)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Live answered-count pill so the user always knows how many
+            // questions remain before the Continue button unlocks.
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: done
+                    ? theme.success.withAlpha(40)
+                    : theme.primary.withAlpha(25),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('$answered / $total',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: done ? theme.success : theme.primary,
+                  )),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: total == 0 ? 0 : answered / total,
+            minHeight: 6,
+            backgroundColor: theme.alternate,
+            valueColor: AlwaysStoppedAnimation(
+                done ? theme.success : theme.primary),
+          ),
+        ),
         const SizedBox(height: 16),
-        ...questions.map((q) => _buildQuestionCard(theme, q)),
+        ...questions
+            .asMap()
+            .entries
+            .map((e) => _buildQuestionCard(theme, e.value, e.key + 1)),
       ],
     );
   }
 
-  Widget _buildQuestionCard(FlutterFlowTheme theme, AssessmentQuestion q) {
+  Widget _buildQuestionCard(
+      FlutterFlowTheme theme, AssessmentQuestion q, int number) {
+    final answered = _answers.containsKey(q.id);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.secondaryBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.alternate, width: 1),
+        border: Border.all(
+          color: answered ? theme.primary.withAlpha(90) : theme.alternate,
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(q.text,
-              style: GoogleFonts.inter(
-                  fontSize: 14, fontWeight: FontWeight.w600, color: theme.primaryText)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Numbered badge, flips to a check once the question is answered.
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: answered ? theme.primary : theme.alternate,
+                  shape: BoxShape.circle,
+                ),
+                child: answered
+                    ? const Icon(Icons.check_rounded,
+                        size: 16, color: Colors.white)
+                    : Text('$number',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: theme.secondaryText,
+                        )),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(q.text,
+                      style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                          color: theme.primaryText)),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           ...q.options.map((opt) {
             final selected = _answers[q.id] == opt.score;
@@ -228,9 +317,12 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                 onTap: () => setState(() => _answers[q.id] = opt.score),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: selected ? theme.primary.withAlpha(15) : Colors.transparent,
+                    color: selected
+                        ? theme.primary.withAlpha(15)
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: selected ? theme.primary : theme.alternate,
@@ -240,7 +332,9 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                   child: Row(
                     children: [
                       Icon(
-                        selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        selected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
                         size: 20,
                         color: selected ? theme.primary : theme.secondaryText,
                       ),
@@ -249,8 +343,12 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                         child: Text(opt.label,
                             style: GoogleFonts.inter(
                               fontSize: 13,
-                              color: selected ? theme.primaryText : theme.secondaryText,
-                              fontWeight: selected ? FontWeight.w500 : FontWeight.normal,
+                              color: selected
+                                  ? theme.primaryText
+                                  : theme.secondaryText,
+                              fontWeight: selected
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
                             )),
                       ),
                     ],
@@ -619,7 +717,7 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
                           Column(
                             mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               InkWell(
                                 onTap: () => _toggleCondition('PCOS'),

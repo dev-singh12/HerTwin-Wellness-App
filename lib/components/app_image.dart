@@ -75,4 +75,9 @@ class AppImages {
   /// Google's official four-colour "G". Their branding guidelines require the
   /// real mark on a "Continue with Google" button, not a monochrome glyph.
   static const googleLogo = 'assets/images/google_logo.svg';
+
+  /// Full HerTwin brand wordmark (butterfly + "HERTWIN — Your Body.
+  /// Understood."). Drop the brand PNG at this path; until it exists the auth
+  /// screen degrades to a text wordmark via AppImage's fallback.
+  static const logoWordmark = 'assets/branding/logo_wordmark.png';
 }
