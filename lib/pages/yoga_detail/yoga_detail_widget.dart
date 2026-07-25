@@ -3,10 +3,12 @@ import 'dart:async';
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
 import '/business/wellness_content_catalog.dart';
+import '/business/video_library.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'yoga_detail_model.dart';
 export 'yoga_detail_model.dart';
 
@@ -202,7 +204,68 @@ class _YogaDetailWidgetState extends State<YogaDetailWidget> {
                     fontSize: 14, color: theme.secondaryText, height: 1.5),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Follow-along video — a real, verified YouTube session the user
+            // can practise with, not just a list of pose names.
+            Builder(builder: (context) {
+              final vid = WellnessContentCatalog.yogaVideoId(content.id);
+              final video = vid == null ? null : VideoLibrary.byId(vid);
+              if (video == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () async {
+                      // Open the real YouTube session so it plays reliably on
+                      // web and mobile (the in-app iframe player is flaky on
+                      // web). Creator attribution is preserved by sending the
+                      // user to the video on YouTube itself.
+                      final url = Uri.parse(video.watchUrl);
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url,
+                            mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    child: Container(
+                      height: 54,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [theme.primary, theme.secondary],
+                          begin: const AlignmentDirectional(-1, 0),
+                          end: const AlignmentDirectional(1, 0),
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.primary.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.play_circle_fill_rounded,
+                              color: Colors.white, size: 24),
+                          const SizedBox(width: 8),
+                          Text('Follow along with video',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
 
             // Timer circle
             if (currentPose != null) ...[

@@ -1080,10 +1080,25 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                             child: Container(
                                             height: 160.0,
                                             decoration: BoxDecoration(
-                                              color: Color(0xFFFFF3E0),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFFFFE0B2),
+                                                  Color(0xFFFFC078)
+                                                ],
+                                                begin: AlignmentDirectional(
+                                                    -1.0, -1.0),
+                                                end: AlignmentDirectional(
+                                                    1.0, 1.0),
+                                              ),
                                               borderRadius:
                                                   BorderRadius.circular(28.0),
                                               shape: BoxShape.rectangle,
+                                              boxShadow: const [
+                                                BoxShadow(
+                                                    color: Color(0x40FB8C00),
+                                                    blurRadius: 16.0,
+                                                    offset: Offset(0.0, 8.0)),
+                                              ],
                                             ),
                                             child: Padding(
                                               padding: EdgeInsets.all(24.0),
@@ -1156,10 +1171,25 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                             child: Container(
                                             height: 100.0,
                                             decoration: BoxDecoration(
-                                              color: Color(0xFFE8F5E9),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFFC8E6C9),
+                                                  Color(0xFF9CCC9E)
+                                                ],
+                                                begin: AlignmentDirectional(
+                                                    -1.0, -1.0),
+                                                end: AlignmentDirectional(
+                                                    1.0, 1.0),
+                                              ),
                                               borderRadius:
                                                   BorderRadius.circular(28.0),
                                               shape: BoxShape.rectangle,
+                                              boxShadow: const [
+                                                BoxShadow(
+                                                    color: Color(0x4043A047),
+                                                    blurRadius: 16.0,
+                                                    offset: Offset(0.0, 8.0)),
+                                              ],
                                             ),
                                             child: Padding(
                                               padding: EdgeInsets.all(24.0),
@@ -1245,10 +1275,25 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                             child: Container(
                                             height: 100.0,
                                             decoration: BoxDecoration(
-                                              color: Color(0xFFE8EAF6),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFFC5CAE9),
+                                                  Color(0xFFA9B2E3)
+                                                ],
+                                                begin: AlignmentDirectional(
+                                                    -1.0, -1.0),
+                                                end: AlignmentDirectional(
+                                                    1.0, 1.0),
+                                              ),
                                               borderRadius:
                                                   BorderRadius.circular(28.0),
                                               shape: BoxShape.rectangle,
+                                              boxShadow: const [
+                                                BoxShadow(
+                                                    color: Color(0x403F51B5),
+                                                    blurRadius: 16.0,
+                                                    offset: Offset(0.0, 8.0)),
+                                              ],
                                             ),
                                             child: Padding(
                                               padding: EdgeInsets.all(24.0),
@@ -1330,10 +1375,25 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                             child: Container(
                                             height: 160.0,
                                             decoration: BoxDecoration(
-                                              color: Color(0xFFFCE4EC),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFFF8BBD0),
+                                                  Color(0xFFF19CB8)
+                                                ],
+                                                begin: AlignmentDirectional(
+                                                    -1.0, -1.0),
+                                                end: AlignmentDirectional(
+                                                    1.0, 1.0),
+                                              ),
                                               borderRadius:
                                                   BorderRadius.circular(28.0),
                                               shape: BoxShape.rectangle,
+                                              boxShadow: const [
+                                                BoxShadow(
+                                                    color: Color(0x40E91E63),
+                                                    blurRadius: 16.0,
+                                                    offset: Offset(0.0, 8.0)),
+                                              ],
                                             ),
                                             child: Padding(
                                               padding: EdgeInsets.all(24.0),

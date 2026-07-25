@@ -62,6 +62,29 @@ class WellnessArticle {
 class WellnessContentCatalog {
   WellnessContentCatalog._();
 
+  /// A real, follow-along YouTube video (by [VideoLibrary] id) for each yoga
+  /// flow, so a user can practise along instead of only reading pose names.
+  /// Every id here points at an already-verified WellnessVideo — do not add one
+  /// that is not in VideoLibrary. Multiple flows may share a video.
+  static const yogaVideoByFlowId = <String, String>{
+    'yoga_follicular_flow': 'vid_women_adriene',
+    'yoga_luteal_restore': 'vid_pcos_agnes_relax',
+    'yoga_period_ease': 'vid_cramps_adison',
+    'yoga_pcos_strength': 'vid_pcos_bothra',
+    'yoga_ovulation_power': 'vid_pcos_bharti',
+    'yoga_pms_calm': 'vid_cramps_adriene',
+    'yoga_morning_gentle': 'vid_period_kassandra',
+    'yoga_sleep_wind_down': 'vid_pcos_agnes_meditation',
+    'yoga_thyroid_balance': 'vid_hormone_shailendra',
+    'yoga_hip_opener': 'vid_period_yogini',
+    'yoga_desk_reset': 'vid_women_adriene',
+    'yoga_cortisol_reset': 'vid_pcos_agnes_relax',
+    'yoga_cycle_regularity_30': 'vid_pcos_satvic',
+  };
+
+  /// The follow-along video library id for a yoga flow, or null if none.
+  static String? yogaVideoId(String flowId) => yogaVideoByFlowId[flowId];
+
   static List<WellnessContent> forConditionAndPhase({
     String? condition,
     CyclePhase? phase,
