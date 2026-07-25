@@ -844,7 +844,7 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
                                 if (uid == null) return;
                                 try {
                                   final picker = ImagePicker();
-                                  final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
+                                  final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1000, imageQuality: 65);
                                   if (picked == null) return;
                                   _showMessage('Uploading report...');
                                   final bytes = await picked.readAsBytes();

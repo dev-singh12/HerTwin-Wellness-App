@@ -4,7 +4,7 @@ import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '/components/app_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'doctor_dashboard_model.dart';
@@ -372,10 +372,10 @@ class _Header extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             child: photoUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: photoUrl,
+                ? AppImage(
+                    photoUrl,
                     fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => _initialsBadge(theme),
+                    fallback: _initialsBadge(theme),
                   )
                 : _initialsBadge(theme),
           ),

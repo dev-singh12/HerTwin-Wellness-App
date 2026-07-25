@@ -1,8 +1,8 @@
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
 
 import 'schema/users_record.dart';
@@ -74,35 +74,41 @@ Future<void> deleteUser(String uid) => userRef(uid).delete();
 // Firebase Storage — profile photos
 // ---------------------------------------------------------------------------
 
-FirebaseStorage get _storage => FirebaseStorage.instance;
+/// Free-tier image "upload". Cloud Storage for Firebase needs the Blaze plan,
+/// which this pilot deliberately avoids, so instead of a bucket URL we inline
+/// the image as a base64 `data:` URI and hand it back for the caller to store
+/// in the very same Firestore field it always used (photoUrl / prescriptionUrl
+/// / a chat message). `AppImage` renders `data:` URIs directly.
+///
+/// The 700KB guard keeps a single image well under Firestore's 1MB document
+/// limit (base64 inflates ~33%). Callers already downscale at the image picker.
+/// ponytail: data-URI-in-Firestore; swap for real Storage once on Blaze.
+String _encodeImage(Uint8List bytes, String contentType) {
+  const maxBytes = 700 * 1024;
+  if (bytes.lengthInBytes > maxBytes) {
+    throw Exception(
+        'Image is too large. Please choose a smaller or clearer photo.');
+  }
+  return 'data:$contentType;base64,${base64Encode(bytes)}';
+}
 
-/// Uploads raw image [bytes] to `users/{uid}/profile.jpg` and returns the
-/// public download URL. Works on web and mobile (bytes-based, no dart:io).
+/// Returns a storable image reference for the given [bytes]. Signature kept
+/// stable (async + returns a String the caller persists) so no call site needed
+/// to change when this moved off Cloud Storage.
 Future<String> uploadProfilePhoto(
   String uid,
   Uint8List bytes, {
   String contentType = 'image/jpeg',
-}) async {
-  final ref = _storage.ref().child('users/$uid/profile.jpg');
-  await ref.putData(bytes, SettableMetadata(contentType: contentType));
-  return ref.getDownloadURL();
-}
+}) async =>
+    _encodeImage(bytes, contentType);
 
-/// Uploads a prescription / medical report to
-/// `users/{uid}/prescriptions/{timestamp}.{ext}` and returns the download URL.
-/// Works on web and mobile (bytes-based, no dart:io).
 Future<String> uploadPrescription(
   String uid,
   Uint8List bytes, {
   String contentType = 'image/jpeg',
   String extension = 'jpg',
-}) async {
-  final stamp = DateTime.now().millisecondsSinceEpoch;
-  final ref =
-      _storage.ref().child('users/$uid/prescriptions/$stamp.$extension');
-  await ref.putData(bytes, SettableMetadata(contentType: contentType));
-  return ref.getDownloadURL();
-}
+}) async =>
+    _encodeImage(bytes, contentType);
 
 // ---------------------------------------------------------------------------
 // users/{uid}/cycles
@@ -623,6 +629,26 @@ Future<DoctorRecord?> getDoctorProfile(String uid) async {
   final snap = await doctorsCollection.doc(uid).get();
   return snap.exists ? DoctorRecord.fromSnapshot(snap) : null;
 }
+
+/// Files a request to become a clinician at `doctor_applications/{uid}`.
+///
+/// Clients can only CREATE their own application (rules forbid read/update/
+/// delete), so this is a one-way outbox. Being unapproved grants nothing — the
+/// account stays a normal patient until an admin reviews the request and
+/// provisions `doctors/{uid}` server-side (`node tool/admin.js promote`). This
+/// is what keeps "sign up as a doctor" from being a privilege-escalation hole.
+Future<void> submitDoctorApplication(
+  String uid, {
+  required String name,
+  required String email,
+}) =>
+    _db.collection('doctor_applications').doc(uid).set({
+      'uid': uid,
+      'name': name.length > 120 ? name.substring(0, 120) : name,
+      'email': email.length > 200 ? email.substring(0, 200) : email,
+      'status': 'pending',
+      'requestedAt': FieldValue.serverTimestamp(),
+    });
 
 Stream<List<DoctorRecord>> streamAvailableDoctors(
         {List<String>? conditions}) =>

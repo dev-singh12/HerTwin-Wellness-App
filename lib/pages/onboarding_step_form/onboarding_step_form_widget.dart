@@ -369,9 +369,9 @@ class _OnboardingStepFormWidgetState extends State<OnboardingStepFormWidget> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 85,
+        maxWidth: 1000,
+        maxHeight: 1000,
+        imageQuality: 65,
       );
       if (picked == null) return;
       setState(() => _uploadingPrescription = true);

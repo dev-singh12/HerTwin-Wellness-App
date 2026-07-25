@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
 
 import '/auth/auth_manager.dart';
-import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/nav/nav.dart';
-import '/index.dart';
+import 'post_auth.dart';
 
 /// Bottom sheet that hosts the email/password sign-in & sign-up form.
 ///
 /// Added on top of the FlutterFlow [AuthScreenWidget], which ships only social
-/// buttons and no text fields. Wired to [AuthManager]; on success it routes to
-/// home or onboarding based on the user's [UsersRecord.onboardingComplete].
+/// buttons and no text fields. Wired to [AuthManager]. On success it pops with
+/// the mode used ('signup' | 'signin'); the opener then runs the shared
+/// [completeAuthNavigation] so member/doctor routing lives in one place.
 class EmailAuthSheet extends StatefulWidget {
-  const EmailAuthSheet({super.key});
+  const EmailAuthSheet({
+    super.key,
+    this.asDoctor = false,
+    this.startSignUp = false,
+  });
+
+  /// Whether the user chose the Doctor role on the auth screen. Passed through
+  /// only so the header reads correctly; the gating happens post-pop.
+  final bool asDoctor;
+
+  /// Open straight into sign-up (from the "Sign up" button) vs sign-in.
+  final bool startSignUp;
 
   @override
   State<EmailAuthSheet> createState() => _EmailAuthSheetState();
@@ -24,7 +34,7 @@ class _EmailAuthSheetState extends State<EmailAuthSheet> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool _isSignUp = false;
+  late bool _isSignUp = widget.startSignUp;
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -77,23 +87,6 @@ class _EmailAuthSheetState extends State<EmailAuthSheet> {
       );
   }
 
-  Future<void> _navigateAfterAuth() async {
-    if (!mounted) return;
-    final uid = AuthManager.instance.currentUid;
-    var onboardingComplete = false;
-    if (uid != null) {
-      final record = await getUser(uid);
-      onboardingComplete = record?.onboardingComplete ?? false;
-    }
-    if (!mounted) return;
-    Navigator.of(context).pop();
-    context.goNamed(
-      onboardingComplete
-          ? HomeDashboardWidget.routeName
-          : OnboardingStepFormWidget.routeName,
-    );
-  }
-
   Future<void> _submit() async {
     if (_isLoading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -112,7 +105,9 @@ class _EmailAuthSheetState extends State<EmailAuthSheet> {
           _passwordController.text,
         );
       }
-      await _navigateAfterAuth();
+      // Hand the mode back to the opener, which runs the shared role-aware
+      // routing (member → onboarding/home, doctor → dashboard or pending).
+      if (mounted) Navigator.of(context).pop(_isSignUp ? 'signup' : 'signin');
     } catch (e) {
       _showError(e.toString());
     } finally {
@@ -169,6 +164,26 @@ class _EmailAuthSheetState extends State<EmailAuthSheet> {
             Text(
               _isSignUp ? 'Create your account' : 'Welcome back',
               style: theme.headlineSmall,
+            ),
+            const SizedBox(height: 4.0),
+            Row(
+              children: [
+                Icon(
+                  widget.asDoctor
+                      ? Icons.medical_services_outlined
+                      : Icons.person_outline_rounded,
+                  size: 15.0,
+                  color: theme.secondaryText,
+                ),
+                const SizedBox(width: 6.0),
+                Text(
+                  widget.asDoctor ? 'Doctor account' : 'Member account',
+                  style: theme.labelMedium.override(
+                    color: theme.secondaryText,
+                    letterSpacing: 0.0,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20.0),
             if (_isSignUp) ...[
@@ -261,15 +276,28 @@ class _EmailAuthSheetState extends State<EmailAuthSheet> {
   }
 }
 
-/// Opens the email auth form as a modal bottom sheet.
-Future<void> showEmailAuthSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
+/// Opens the email auth form as a modal bottom sheet, then runs the shared
+/// role-aware routing once it closes on success.
+Future<void> showEmailAuthSheet(
+  BuildContext context, {
+  bool asDoctor = false,
+  bool startSignUp = false,
+}) async {
+  final mode = await showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
     ),
-    builder: (_) => const EmailAuthSheet(),
+    builder: (_) =>
+        EmailAuthSheet(asDoctor: asDoctor, startSignUp: startSignUp),
   );
+  if (mode != null && context.mounted) {
+    await completeAuthNavigation(
+      context,
+      asDoctor: asDoctor,
+      wasSignUp: mode == 'signup',
+    );
+  }
 }

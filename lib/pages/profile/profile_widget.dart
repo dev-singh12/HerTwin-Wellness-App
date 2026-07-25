@@ -7,7 +7,7 @@ import '/business/cycle_engine.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '/components/app_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -103,9 +103,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
+        maxWidth: 720,
+        maxHeight: 720,
+        imageQuality: 80,
       );
       if (picked == null) return;
       safeSetState(() => _uploadingPhoto = true);
@@ -348,13 +348,12 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                           alignment: AlignmentDirectional.center,
                           child: ClipOval(
                             child: photoUrl.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: photoUrl,
+                                ? AppImage(
+                                    photoUrl,
                                     width: 108.0,
                                     height: 108.0,
                                     fit: BoxFit.cover,
-                                    errorWidget: (c, u, e) =>
-                                        _initialsAvatar(theme),
+                                    fallback: _initialsAvatar(theme),
                                   )
                                 : _initialsAvatar(theme),
                           ),

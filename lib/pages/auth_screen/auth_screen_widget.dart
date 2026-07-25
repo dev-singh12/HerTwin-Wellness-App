@@ -1,6 +1,5 @@
 import '/components/app_image.dart';
 import '/auth/auth_manager.dart';
-import '/backend/backend.dart';
 import '/components/social_auth_button/social_auth_button_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -9,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'auth_screen_model.dart';
 import 'email_auth_sheet.dart';
+import 'post_auth.dart';
 export 'auth_screen_model.dart';
 
 class AuthScreenWidget extends StatefulWidget {
@@ -27,6 +27,10 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool _googleLoading = false;
+
+  /// Which role the user is entering as. Purely a UI/routing hint — it grants
+  /// no privilege (clinician access is approved server-side). See [post_auth].
+  bool _asDoctor = false;
 
   @override
   void initState() {
@@ -66,23 +70,104 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
     setState(() => _googleLoading = true);
     try {
       await AuthManager.instance.signInWithGoogle();
-      final uid = AuthManager.instance.currentUid;
-      var onboardingComplete = false;
-      if (uid != null) {
-        final record = await getUser(uid);
-        onboardingComplete = record?.onboardingComplete ?? false;
-      }
       if (!mounted) return;
-      context.goNamed(
-        onboardingComplete
-            ? HomeDashboardWidget.routeName
-            : OnboardingStepFormWidget.routeName,
-      );
+      // One shared path decides member vs approved-doctor vs pending-doctor.
+      await completeAuthNavigation(context, asDoctor: _asDoctor);
     } catch (e) {
       _showError(e.toString());
     } finally {
       if (mounted) setState(() => _googleLoading = false);
     }
+  }
+
+  /// One segment of the User/Doctor selector.
+  Widget _roleTab({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final theme = FlutterFlowTheme.of(context);
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12.0),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 44.0,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? theme.secondaryBackground : Colors.transparent,
+            borderRadius: BorderRadius.circular(12.0),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                        color: Colors.black.withAlpha(18),
+                        blurRadius: 6.0,
+                        offset: const Offset(0, 2))
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 18.0,
+                  color: selected ? theme.primary : theme.secondaryText),
+              const SizedBox(width: 6.0),
+              Text(label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? theme.primaryText : theme.secondaryText,
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A 56px auth action pill. [filled] = solid primary; otherwise outlined.
+  Widget _pill({
+    required IconData icon,
+    required String label,
+    required bool filled,
+    required VoidCallback onTap,
+  }) {
+    final theme = FlutterFlowTheme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28.0),
+        onTap: onTap,
+        child: Container(
+          height: 56.0,
+          decoration: BoxDecoration(
+            color: filled ? theme.primary : theme.secondaryBackground,
+            borderRadius: BorderRadius.circular(28.0),
+            border:
+                filled ? null : Border.all(color: theme.alternate, width: 1.0),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 20.0, color: filled ? theme.onPrimary : theme.primary),
+              const SizedBox(width: 12.0),
+              Text(label,
+                  style: theme.titleSmall.override(
+                    font: GoogleFonts.interTight(fontWeight: FontWeight.w600),
+                    color: filled ? theme.onPrimary : theme.primaryText,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.0,
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -161,8 +246,46 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                         ),
                       );
                     }),
-                    const SizedBox(height: 36.0),
-                    // Google — bordered white button (unchanged behaviour).
+                    const SizedBox(height: 28.0),
+                    // Role selector — the screen no longer hides whether you're
+                    // a member or a clinician. Purely a routing/label hint; it
+                    // grants nothing (clinician access is approved server-side).
+                    Container(
+                      padding: const EdgeInsets.all(4.0),
+                      decoration: BoxDecoration(
+                        color: FlutterFlowTheme.of(context)
+                            .alternate
+                            .withAlpha(140),
+                        borderRadius: BorderRadius.circular(16.0),
+                      ),
+                      child: Row(
+                        children: [
+                          _roleTab(
+                            label: "I'm a User",
+                            icon: Icons.person_rounded,
+                            selected: !_asDoctor,
+                            onTap: () => safeSetState(() => _asDoctor = false),
+                          ),
+                          _roleTab(
+                            label: "I'm a Doctor",
+                            icon: Icons.medical_services_rounded,
+                            selected: _asDoctor,
+                            onTap: () => safeSetState(() => _asDoctor = true),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20.0),
+                    // 1) Sign up (first time) — solid primary CTA.
+                    _pill(
+                      icon: Icons.person_add_alt_1_rounded,
+                      label: 'Sign up — first time',
+                      filled: true,
+                      onTap: () => showEmailAuthSheet(context,
+                          asDoctor: _asDoctor, startSignUp: true),
+                    ),
+                    const SizedBox(height: 12.0),
+                    // 2) Continue with Google — bordered white (G mark).
                     Stack(
                       alignment: AlignmentDirectional.center,
                       children: [
@@ -190,48 +313,16 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 14.0),
-                    // Email — filled primary button, same 56px pill as Google
-                    // so the two read as a matched pair instead of a strong
-                    // button beside a weak text link.
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(28.0),
-                        onTap: () => showEmailAuthSheet(context),
-                        child: Container(
-                          height: 56.0,
-                          decoration: BoxDecoration(
-                            color: FlutterFlowTheme.of(context).primary,
-                            borderRadius: BorderRadius.circular(28.0),
-                          ),
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.mail_outline_rounded,
-                                  color: FlutterFlowTheme.of(context).onPrimary,
-                                  size: 20.0),
-                              const SizedBox(width: 12.0),
-                              Text(
-                                'Continue with Email',
-                                style: FlutterFlowTheme.of(context)
-                                    .titleSmall
-                                    .override(
-                                      font: GoogleFonts.interTight(
-                                          fontWeight: FontWeight.w600),
-                                      color: FlutterFlowTheme.of(context)
-                                          .onPrimary,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.0,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    const SizedBox(height: 12.0),
+                    // 3) Continue with Email — outlined pill (sign in).
+                    _pill(
+                      icon: Icons.mail_outline_rounded,
+                      label: 'Continue with Email',
+                      filled: false,
+                      onTap: () => showEmailAuthSheet(context,
+                          asDoctor: _asDoctor, startSignUp: false),
                     ),
-                    const SizedBox(height: 32.0),
+                    const SizedBox(height: 28.0),
                     Text(
                       'By continuing, you agree to our',
                       textAlign: TextAlign.center,

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -27,6 +29,7 @@ class AppImage extends StatelessWidget {
   final Widget? fallback;
 
   bool get _isAsset => path.startsWith('assets/');
+  bool get _isDataUri => path.startsWith('data:');
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +37,25 @@ class AppImage extends StatelessWidget {
         Container(color: Theme.of(context).dividerColor.withValues(alpha: 0.2));
 
     if (path.isEmpty) return SizedBox(width: width, height: height, child: placeholder);
+
+    // Base64 image stored inline in Firestore (the free-tier stand-in for
+    // Cloud Storage). Decode once and render from memory.
+    if (_isDataUri) {
+      final comma = path.indexOf(',');
+      if (comma < 0) return placeholder;
+      try {
+        final bytes = base64Decode(path.substring(comma + 1));
+        return Image.memory(
+          bytes,
+          fit: fit,
+          width: width,
+          height: height,
+          errorBuilder: (_, __, ___) => placeholder,
+        );
+      } catch (_) {
+        return placeholder;
+      }
+    }
 
     if (_isAsset) {
       return Image.asset(

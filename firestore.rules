@@ -291,6 +291,24 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // doctor_applications/{uid} — a user's request to become a clinician.
+    //
+    // Write-only outbox, keyed to the applicant's own uid. Being able to file
+    // an application grants NO privilege: clinician access is still solely the
+    // existence of doctors/{uid}, which only the Admin SDK can create. An admin
+    // reviews these and promotes approved doctors server-side.
+    // ---------------------------------------------------------------------
+    match /doctor_applications/{uid} {
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && isText(request.resource.data.name, 120)
+        && isText(request.resource.data.email, 200)
+        && request.resource.data.status == 'pending';
+
+      allow read, update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // Server-owned collections. Read-only to every client.
     // ---------------------------------------------------------------------
     match /meta/{docId} {
