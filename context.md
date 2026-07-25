@@ -561,3 +561,80 @@ falls back to debug signing when absent.
 - When adding a new page: create `_widget.dart` + `_model.dart`, register in `nav.dart`,
   export from `lib/index.dart`, add an in-app entry point.
 - `safeSetState` not `setState`. `Color.toARGB32()` not `.value`.
+
+---
+
+## 12. V3.2 — auth redesign, free uploads, booking fixes, UI polish (2026-07-25)
+
+### Auth screen (`lib/pages/auth_screen/`)
+- Real brand wordmark: `assets/branding/logo_wordmark.png` (the butterfly
+  "HERTWIN — Your Body. Understood."), rendered in a rounded card by `AppImage`
+  with a gradient+text fallback if the asset is missing. Source drop lives at
+  repo-root `hertwin logo.jpeg` (resize with `sips -Z 600 -s format png ...`).
+- **Role-based, modular** entry: a `_asDoctor` "I'm a User / I'm a Doctor"
+  segmented toggle + three options — **Sign up (first time)**, **Continue with
+  Google**, **Continue with Email**. Email sheet (`email_auth_sheet.dart`) now
+  takes `asDoctor` + `startSignUp` and pops with the mode; both entry points
+  route through one shared **`post_auth.dart` → `completeAuthNavigation`**.
+- **Doctors are approval-gated (secure).** An unapproved doctor login files a
+  write-only `doctor_applications/{uid}` request (new `firestore.rules` block)
+  and is signed out with a "pending approval" dialog. Clinician access is still
+  ONLY the existence of `doctors/{uid}` (admin-created). Approve with
+  `node tool/admin.js promote <email>`. No client can self-grant.
+
+### Free-tier image uploads (NO Cloud Storage)
+- Storage needs the Blaze plan (project created after Oct 2024; `firebase
+  deploy --only storage` fails "not set up"). So `uploadProfilePhoto` /
+  `uploadPrescription` in `backend.dart` now return a base64 `data:` URI
+  (700KB guard, under Firestore's 1MB doc limit) stored in the same field
+  (`photoUrl`/`prescriptionUrl`). `AppImage` renders `data:` URIs via
+  `Image.memory`. **Any new image render site must use `AppImage`**, never
+  `CachedNetworkImage`/`NetworkImage` (they can't decode data URIs). Pickers
+  downscaled (profile 720/q80, prescriptions 1000/q65).
+
+### End-to-end booking — root-cause fixes
+- **The big one:** symptom logging wrote `lastLogDate` as an ISO **String**,
+  but `UsersRecord` parsed it `as Timestamp`, so `getUser()` threw on every
+  read of any user doc that had logged a symptom — silently breaking the
+  dashboard (bounced to onboarding), the onboarding-result score (stuck at 0)
+  and the booking confirm ("Booking failed"). Fixed: `UsersRecord._toDate`
+  tolerates Timestamp|String|DateTime (heals legacy docs on read); log_symptoms
+  writes a Timestamp.
+- `getDoctorSlots` now drops slots already past (now + 30 min) for today.
+- **Only real doctors:** the seeded catalog `doctors/doctor_0..5` were deleted
+  from Firestore (their ids aren't auth uids → bookings against them can't be
+  serviced). Only real clinicians (id == auth uid, e.g. Dr. Dev
+  `kQqY6ofcVredFjbQvfv80MDb4Xo1`) remain bookable. See
+  [[booking-loop-needs-real-clinician-uid]].
+- Patient dashboard: new live **"Your care plan"** card (`_buildCarePlanCard`)
+  streams the latest completed appointment's prescription + doctor notes.
+
+### Hosting cache fix (`firebase.json`)
+- `main.dart.js` / `flutter_bootstrap.js` are NOT content-hashed, but were
+  cached `immutable` for a year → every redeploy was invisible to returning
+  browsers. Now `js|wasm` = `no-cache` (ETag revalidation), `canvaskit/**`
+  stays immutable. Note: browsers that cached the old immutable bundle need one
+  hard refresh; new visitors are fine.
+
+### UI polish (vibrant + cohesive pastel system)
+- Dashboard "Nurture Yourself": rich pastel gradient tiles + coloured shadows,
+  and the 2×2 grid columns now `stretch` (no more empty middle gap).
+- Insights: the 4 metric cards use soft accent-tinted gradients + shadows.
+- Yoga: every flow maps to a verified follow-along YouTube video
+  (`WellnessContentCatalog.yogaVideoByFlowId`); a "Follow along with video"
+  button opens it via `url_launcher` (the in-app iframe player crashes on web).
+- Community: group cards (`InterestGroupWidget`) get accent-tinted gradients +
+  white icon chips; filter chips rewritten as container chips (Material
+  ChoiceChip was clipping labels).
+
+### Build / deploy
+- Web live on both hosting domains (see §9). Redeploy:
+  `flutter build web --no-tree-shake-icons && firebase deploy --only hosting`.
+- **v1 APK:** `~/Desktop/HerTwin-v1.0.0.apk` (68MB, `com.hertwin.wellness`,
+  versionName 1.0.0). **Debug-signed** (no `android/key.properties`) → installs
+  by sideload, but Play rejects it and **Google Sign-In on Android needs the
+  debug key's SHA-1 registered** in the Firebase Android app (email works
+  regardless). For Play: `bash tool/create-keystore.sh` then
+  `flutter build appbundle --release`.
+- Test account: `testflow.hertwin.2607@gmail.com` / `testpass123` (patient,
+  onboarded, one booking against Dr. Dev).
