@@ -61,15 +61,32 @@ class _InterestGroupWidgetState extends State<InterestGroupWidget> {
         child: Container(
           width: 140.0,
           decoration: BoxDecoration(
-            color: FlutterFlowTheme.of(context).secondaryBackground,
+            // Soft tint of the group's own accent + a matching shadow, so each
+            // circle reads as a vibrant, cohesive card instead of a flat white
+            // box. The joined state still gets a solid primary ring.
+            gradient: LinearGradient(
+              colors: [
+                widget.icon_color.withValues(alpha: 0.22),
+                widget.icon_color.withValues(alpha: 0.08),
+              ],
+              begin: const AlignmentDirectional(-1.0, -1.0),
+              end: const AlignmentDirectional(1.0, 1.0),
+            ),
             borderRadius: BorderRadius.circular(28.0),
             shape: BoxShape.rectangle,
             border: Border.all(
               color: widget.joined
                   ? FlutterFlowTheme.of(context).primary
-                  : FlutterFlowTheme.of(context).alternate,
-              width: widget.joined ? 2.0 : 1.0,
+                  : Colors.transparent,
+              width: widget.joined ? 2.0 : 0.0,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: widget.icon_color.withValues(alpha: 0.20),
+                blurRadius: 12.0,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
           child: Padding(
             padding: EdgeInsets.all(16.0),
@@ -83,12 +100,17 @@ class _InterestGroupWidgetState extends State<InterestGroupWidget> {
                     width: 48.0,
                     height: 48.0,
                     decoration: BoxDecoration(
-                      color: valueOrDefault<Color>(
-                        widget.bg,
-                        Color(0xFFFCE4EC),
-                      ),
+                      // White chip so the accent icon pops on the tinted card.
+                      color: FlutterFlowTheme.of(context).secondaryBackground,
                       borderRadius: BorderRadius.circular(9999.0),
                       shape: BoxShape.rectangle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: widget.icon_color.withValues(alpha: 0.18),
+                          blurRadius: 8.0,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     alignment: AlignmentDirectional(0.0, 0.0),
                     child: widget.icon!,

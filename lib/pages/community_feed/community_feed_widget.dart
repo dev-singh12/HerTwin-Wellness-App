@@ -1138,29 +1138,31 @@ class _CommunityFeedWidgetState extends State<CommunityFeedWidget> {
 
   Widget _filterChip(String? value, String label) {
     final selected = _feedCategory == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => safeSetState(() => _feedCategory = value),
-      showCheckmark: false,
-      backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-      selectedColor: FlutterFlowTheme.of(context).primary,
-      labelStyle: GoogleFonts.inter(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: selected
-            ? FlutterFlowTheme.of(context).onPrimary
-            : FlutterFlowTheme.of(context).secondaryText,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: selected
-              ? FlutterFlowTheme.of(context).primary
-              : FlutterFlowTheme.of(context).alternate,
+    final theme = FlutterFlowTheme.of(context);
+    // A plain container chip instead of Material's ChoiceChip, whose tight
+    // internal padding was clipping labels ("General" -> "Genera").
+    return GestureDetector(
+      onTap: () => safeSetState(() => _feedCategory = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? theme.primary : theme.secondaryBackground,
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(
+            color: selected ? theme.primary : theme.alternate,
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          softWrap: false,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: selected ? theme.onPrimary : theme.secondaryText,
+          ),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 
