@@ -513,9 +513,25 @@ class _InsightsWidgetState extends State<InsightsWidget> {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: theme.secondaryBackground,
-            borderRadius: BorderRadius.circular(16.0),
-            border: Border.all(color: theme.alternate, width: 1.0),
+            // Soft accent-tinted gradient + coloured shadow, so the four
+            // metrics read as a vibrant, cohesive set instead of flat white
+            // cards. Numbers stay dark for readability.
+            gradient: LinearGradient(
+              colors: [
+                accent.withValues(alpha: 0.24),
+                accent.withValues(alpha: 0.10),
+              ],
+              begin: const AlignmentDirectional(-1.0, -1.0),
+              end: const AlignmentDirectional(1.0, 1.0),
+            ),
+            borderRadius: BorderRadius.circular(18.0),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.20),
+                blurRadius: 12.0,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
