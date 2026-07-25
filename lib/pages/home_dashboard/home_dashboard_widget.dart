@@ -1072,7 +1072,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         mainAxisAlignment:
                                             MainAxisAlignment.start,
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.center,
+                                            CrossAxisAlignment.stretch,
                                         children: [
                                           InkWell(
                                             onTap: () => context.pushNamed(
@@ -1267,7 +1267,7 @@ class _HomeDashboardWidgetState extends State<HomeDashboardWidget> {
                                         mainAxisAlignment:
                                             MainAxisAlignment.start,
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.center,
+                                            CrossAxisAlignment.stretch,
                                         children: [
                                           InkWell(
                                             onTap: () => context.pushNamed(
