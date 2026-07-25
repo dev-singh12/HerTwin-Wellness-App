@@ -112,57 +112,56 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                     // the very first screen a user sees is never empty.
                     Builder(builder: (context) {
                       final theme = FlutterFlowTheme.of(context);
-                      final logoW = (MediaQuery.sizeOf(context).width * 0.6)
-                          .clamp(200.0, 300.0);
-                      return AppImage(
-                        AppImages.logoWordmark,
-                        width: logoW,
-                        fit: BoxFit.contain,
-                        fallback: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 96.0,
-                              height: 96.0,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [theme.primary, theme.secondary],
-                                  begin: const AlignmentDirectional(1.0, -1.0),
-                                  end: const AlignmentDirectional(-1.0, 1.0),
+                      final logoW = (MediaQuery.sizeOf(context).width * 0.66)
+                          .clamp(240.0, 320.0);
+                      // Rounded card so the wordmark's soft background reads as
+                      // a deliberate logo tile rather than a floating rectangle
+                      // on the near-white page.
+                      return Center(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24.0),
+                          child: AppImage(
+                            AppImages.logoWordmark,
+                            width: logoW,
+                            fit: BoxFit.contain,
+                            fallback: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 96.0,
+                                  height: 96.0,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [theme.primary, theme.secondary],
+                                      begin:
+                                          const AlignmentDirectional(1.0, -1.0),
+                                      end:
+                                          const AlignmentDirectional(-1.0, 1.0),
+                                    ),
+                                    borderRadius: BorderRadius.circular(28.0),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.spa_rounded,
+                                      color: Colors.white, size: 44.0),
                                 ),
-                                borderRadius: BorderRadius.circular(28.0),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.spa_rounded,
-                                  color: Colors.white, size: 44.0),
+                                const SizedBox(height: 16.0),
+                                Text(
+                                  'HerTwin',
+                                  style: theme.headlineLarge.override(
+                                    font: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.bold),
+                                    color: theme.primaryText,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 16.0),
-                            Text(
-                              'HerTwin',
-                              style: theme.headlineLarge.override(
-                                font: GoogleFonts.plusJakartaSans(
-                                    fontWeight: FontWeight.bold),
-                                color: theme.primaryText,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       );
                     }),
-                    const SizedBox(height: 16.0),
-                    Text(
-                      'Your body, understood.',
-                      textAlign: TextAlign.center,
-                      style: FlutterFlowTheme.of(context).bodyMedium.override(
-                            font: GoogleFonts.inter(),
-                            color: FlutterFlowTheme.of(context).secondaryText,
-                            letterSpacing: 0.2,
-                            lineHeight: 1.5,
-                          ),
-                    ),
-                    const SizedBox(height: 40.0),
+                    const SizedBox(height: 36.0),
                     // Google — bordered white button (unchanged behaviour).
                     Stack(
                       alignment: AlignmentDirectional.center,
