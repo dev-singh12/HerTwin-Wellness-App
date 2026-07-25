@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '/auth/auth_manager.dart';
 import '/backend/backend.dart';
 import '/business/cycle_engine.dart';
@@ -195,7 +196,10 @@ class _LogSymptomsModalWidgetState extends State<LogSymptomsModalWidget> {
       final newScore = (oldScore + vitalityDelta).clamp(0, 100);
       await updateUser(uid, {
         'healthVitalityScore': newScore,
-        'lastLogDate': now.toIso8601String(),
+        // Must be a Timestamp — UsersRecord reads lastLogDate as one. Writing
+        // an ISO String here previously corrupted the user doc and crashed
+        // every later read of it.
+        'lastLogDate': Timestamp.fromDate(now),
       });
       final todayStr = DateFormat('yyyy-MM-dd').format(now);
       await saveScoreLog(uid, todayStr, newScore);

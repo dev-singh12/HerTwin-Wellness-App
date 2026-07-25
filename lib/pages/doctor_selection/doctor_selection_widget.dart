@@ -235,7 +235,20 @@ class _DoctorSelectionWidgetState extends State<DoctorSelectionWidget> {
                     future: selectedDate != null ? getDoctorSlots(doctor.id, selectedDate!) : Future.value([]),
                     builder: (_, snap) {
                       final slots = snap.data ?? [];
-                      if (slots.isEmpty) return Text('Select a date first', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey));
+                      if (slots.isEmpty) {
+                        // Distinguish "no date yet" from "date chosen but every
+                        // slot has already passed today" so today never looks
+                        // bookable when it isn't.
+                        final loading =
+                            selectedDate != null && snap.connectionState == ConnectionState.waiting;
+                        return Text(
+                            selectedDate == null
+                                ? 'Select a date first'
+                                : loading
+                                    ? 'Loading slots…'
+                                    : 'No slots left for this day — please pick another date.',
+                            style: GoogleFonts.inter(fontSize: 13, color: Colors.grey));
+                      }
                       return Wrap(
                         spacing: 8,
                         runSpacing: 8,

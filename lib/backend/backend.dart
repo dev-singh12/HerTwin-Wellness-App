@@ -670,7 +670,23 @@ Future<List<String>> getDoctorSlots(String doctorId, String date) async {
   final snap = await doctorsCollection.doc(doctorId).get();
   if (!snap.exists) return [];
   final doc = DoctorRecord.fromSnapshot(snap);
-  return doc.availableSlots[date] ?? _generateDefaultSlots();
+  final base = doc.availableSlots[date] ?? _generateDefaultSlots();
+
+  // For today, drop slots that have already passed (plus a 30-minute lead
+  // time) — you cannot book 9:00am at 4:35pm. Future dates keep every slot.
+  final now = DateTime.now();
+  final today = DateFormat('yyyy-MM-dd').format(now);
+  if (date != today) return base;
+  final cutoff = now.add(const Duration(minutes: 30));
+  return base.where((s) {
+    final parts = s.split(':');
+    if (parts.length != 2) return true;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return true;
+    final slot = DateTime(now.year, now.month, now.day, h, m);
+    return slot.isAfter(cutoff);
+  }).toList();
 }
 
 List<String> _generateDefaultSlots() {

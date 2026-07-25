@@ -95,8 +95,8 @@ class UsersRecord {
             (data['symptoms'] as List?)?.map((e) => e as String).toList() ??
                 const <String>[],
         onboardingComplete: (data['onboardingComplete'] as bool?) ?? false,
-        createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
-        lastActiveAt: (data['lastActiveAt'] as Timestamp?)?.toDate(),
+        createdAt: _toDate(data['createdAt']),
+        lastActiveAt: _toDate(data['lastActiveAt']),
         conditionType: (data['conditionType'] as String?) ?? '',
         latestAssessmentScore:
             (data['latestAssessmentScore'] as num?)?.toInt() ?? 0,
@@ -114,9 +114,21 @@ class UsersRecord {
             const <String>[],
         healthVitalityScore:
             (data['healthVitalityScore'] as num?)?.toInt() ?? 0,
-        lastLogDate: (data['lastLogDate'] as Timestamp?)?.toDate(),
+        lastLogDate: _toDate(data['lastLogDate']),
         prescriptionUrl: data['prescriptionUrl'] as String?,
       );
+
+  /// Tolerant date parser. A bug once wrote `lastLogDate` as an ISO String
+  /// instead of a Timestamp, and `x as Timestamp` throws on a String — which
+  /// crashed EVERY read of the user doc (dashboard, booking, onboarding
+  /// result). Accept Timestamp, String, or DateTime so a legacy value can
+  /// never take the whole record down again; the next write heals it.
+  static DateTime? _toDate(dynamic v) {
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v);
+    return null;
+  }
 
   factory UsersRecord.fromSnapshot(DocumentSnapshot snapshot) =>
       UsersRecord.fromMap(
